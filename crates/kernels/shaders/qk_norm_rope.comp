@@ -1,0 +1,70 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#define RED_N 64u
+#include "reduce.glsl"
+
+// Attention's query and key heads. Workgroup g < n_head takes query head g from the
+// interleaved projection qfull ([q_g | gate_g] per head), copies gate_g out, and writes q_g normalized and rotated;
+// workgroups from n_head do key head g - n_head in place. Each head: RMSNorm with its weight, then NeoX RoPE on the
+// first n_rot dims with the token's table (cosines then sines, computed by the host in f64). Workgroup y is the token
+// of a batch: qfull, k, q, gate and the tables hold one row per token, and n_kv is the workgroups past n_head. hd is
+// at most 256.
+layout(local_size_x = 64) in;
+layout(push_constant) uniform Push {
+    uint64_t qfull;
+    uint64_t k;
+    uint64_t q;
+    uint64_t gate;
+    uint64_t q_norm;
+    uint64_t k_norm;
+    uint64_t rope;
+    uint hd;
+    uint n_head;
+    uint n_rot;
+    float eps;
+} p;
+
+shared float xs[256];
+
+void main() {
+    uint g = gl_WorkGroupID.x, t = gl_LocalInvocationID.x, tok = gl_WorkGroupID.y;
+    uint n_kv = gl_NumWorkGroups.x - p.n_head;
+    bool isq = g < p.n_head;
+    uint64_t qrow = 4ul * uint64_t(tok * p.n_head * p.hd);
+    uint64_t src = isq ? p.qfull + 2ul * qrow + 4ul * uint64_t(2u * g * p.hd)
+                       : p.k + 4ul * uint64_t((tok * n_kv + g - p.n_head) * p.hd);
+    uint64_t dst = isq ? p.q + qrow + 4ul * uint64_t(g * p.hd) : src;
+    F32s w = F32s(isq ? p.q_norm : p.k_norm);
+    F32s rope = F32s(p.rope + 4ul * uint64_t(tok * p.n_rot));
+    if (isq) {
+        F32s gate = F32s(p.gate + qrow);
+        for (uint i = t; i < p.hd; i += 64u) {
+            gate.v[g * p.hd + i] = F32s(src).v[p.hd + i];
+        }
+    }
+    float ss = 0.0;
+    for (uint i = t; i < p.hd; i += 64u) {
+        float v = F32s(src).v[i];
+        xs[i] = v;
+        ss += v * v;
+    }
+    float total = red_sum(0u, t, ss);
+    float scale = 1.0 / sqrt(total / float(p.hd) + p.eps);
+    for (uint i = t; i < p.hd; i += 64u) {
+        xs[i] = (xs[i] * scale) * w.v[i];
+    }
+    barrier();
+    uint hr = p.n_rot / 2u;
+    if (t < hr) {
+        float c = rope.v[t];
+        float s = rope.v[hr + t];
+        float a = xs[t], b = xs[t + hr];
+        xs[t] = a * c - b * s;
+        xs[t + hr] = a * s + b * c;
+    }
+    barrier();
+    for (uint i = t; i < p.hd; i += 64u) {
+        F32s(dst).v[i] = xs[i];
+    }
+}

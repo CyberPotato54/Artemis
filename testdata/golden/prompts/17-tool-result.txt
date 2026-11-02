@@ -1,0 +1,62 @@
+<|im_start|>system
+# Tools
+
+You have access to the following functions:
+
+<tools>
+{"type": "function", "function": {"name": "search_files", "description": "Search the repository for lines matching a pattern. Returns path:line: text for each match.", "parameters": {"type": "object", "properties": {"pattern": {"type": "string", "description": "A regular expression"}, "path": {"type": "string", "description": "The directory to search"}}, "required": ["pattern"]}}}
+{"type": "function", "function": {"name": "read_file", "description": "Read a file from the repository.", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "The file's path"}}, "required": ["path"]}}}
+</tools>
+
+If you choose to call a function ONLY reply in the following format with NO suffix:
+
+<tool_call>
+<function=example_function_name>
+<parameter=example_parameter_1>
+value_1
+</parameter>
+<parameter=example_parameter_2>
+This is the value for the second parameter
+that can span
+multiple lines
+</parameter>
+</function>
+</tool_call>
+
+<IMPORTANT>
+Reminder:
+- Function calls MUST follow the specified format: an inner <function=...></function> block must be nested within <tool_call></tool_call> XML tags
+- Required parameters MUST be specified
+- You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after
+- If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
+</IMPORTANT><|im_end|>
+<|im_start|>user
+Find the TODO comments under src/ and tell me which one looks most urgent, and why.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+<tool_call>
+<function=search_files>
+<parameter=pattern>
+TODO
+</parameter>
+<parameter=path>
+src
+</parameter>
+</function>
+</tool_call><|im_end|>
+<|im_start|>user
+<tool_response>
+src/net/retry.rs:41:    // TODO: cap the backoff; it grows without limit after 30 failures
+src/net/retry.rs:88:    // TODO: log the final error before giving up
+src/ui/theme.rs:12: // TODO: dark mode colours are hard-coded
+src/db/pool.rs:203:        // TODO: connections leak if the health check panics
+src/main.rs:7: // TODO: remove the debug flag before release
+</tool_response><|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

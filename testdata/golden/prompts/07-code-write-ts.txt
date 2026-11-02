@@ -1,0 +1,7 @@
+<|im_start|>user
+Write a TypeScript function `debounce` that takes a function and a delay in milliseconds and returns a debounced version of it. The returned function must keep the original parameter types, and it must have a `cancel()` method that drops a pending call. Add a JSDoc comment and a two-line example.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

@@ -1,0 +1,55 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// The gated delta rule for one token, one workgroup per value head h, which uses key group
+// h % n_group. Thread j owns row j of the head's state M (M[j][i] = S[i][j], key index contiguous):
+//   M[j][·] *= exp(g_h);  u = Σ_i M[j][i]·k_i;  δ = (v_j − u)·β_h;  M[j][i] += k_i·δ;  o_j = (Σ_i M[j][i]·q_i)·scale.
+// Both sums run over i in order, so the twin mirrors them exactly. dk and dv are at most 128.
+layout(local_size_x = 128) in;
+layout(push_constant) uniform Push {
+    uint64_t q;
+    uint64_t k;
+    uint64_t v;
+    uint64_t g;
+    uint64_t beta;
+    uint64_t state;
+    uint64_t o;
+    uint dk;
+    uint dv;
+    uint n_group;
+    float scale;
+} p;
+
+shared float qs[128];
+shared float ks[128];
+
+void main() {
+    uint h = gl_WorkGroupID.x, j = gl_LocalInvocationID.x;
+    uint grp = h % p.n_group;
+    if (j < p.dk) {
+        qs[j] = F32s(p.q).v[grp * p.dk + j];
+        ks[j] = F32s(p.k).v[grp * p.dk + j];
+    }
+    barrier();
+    if (j >= p.dv) {
+        return;
+    }
+    float decay = exp(F32s(p.g).v[h]);
+    float b = F32s(p.beta).v[h];
+    F32s m = F32s(p.state + uint64_t(4u * (h * p.dv + j)) * uint64_t(p.dk));
+    float u = 0.0;
+    for (uint i = 0u; i < p.dk; i++) {
+        float e = m.v[i] * decay;
+        m.v[i] = e;
+        u += e * ks[i];
+    }
+    float delta = (F32s(p.v).v[h * p.dv + j] - u) * b;
+    float acc = 0.0;
+    for (uint i = 0u; i < p.dk; i++) {
+        float e = m.v[i] + ks[i] * delta;
+        m.v[i] = e;
+        acc += e * qs[i];
+    }
+    F32s(p.o).v[h * p.dv + j] = acc * p.scale;
+}

@@ -1,0 +1,64 @@
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_KHR_shader_subgroup_clustered : require
+
+// y = W.x for Q4_K rows of length k. ggml block_q4_K, 144 bytes: f16 d, f16 dmin, 12 bytes of packed 6-bit
+// scales and mins, 128 bytes of nibbles. 32 lanes per row and 8 rows per workgroup; lane t handles 64-weight
+// chunk (t % 4) of block (t / 4), striding 8 blocks at a time.
+layout(local_size_x = 32, local_size_y = 8) in;
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer Words { uint v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer Vec { float v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) writeonly buffer Out { float v[]; };
+layout(push_constant) uniform Push { uint64_t w; uint64_t x; uint64_t y; uint rows; uint k; } p;
+
+uint sbyte(uvec3 s, uint i) {
+    return (s[i >> 2] >> (8u * (i & 3u))) & 0xFFu;
+}
+
+// ggml's get_scale_min_k4: (scale, min) for sub-block j in 0..8.
+vec2 scale_min(uvec3 s, uint j) {
+    if (j < 4u) {
+        return vec2(float(sbyte(s, j) & 63u), float(sbyte(s, j + 4u) & 63u));
+    }
+    return vec2(float((sbyte(s, j + 4u) & 0xFu) | ((sbyte(s, j - 4u) >> 6) << 4)),
+                float((sbyte(s, j + 4u) >> 4) | ((sbyte(s, j) >> 6) << 4)));
+}
+
+void main() {
+    uint row = gl_WorkGroupID.x * 8u + gl_LocalInvocationID.y;
+    uint lane = gl_LocalInvocationID.x;
+    uint blocks = p.k / 256u;
+    Words w = Words(p.w + uint64_t(row) * uint64_t(blocks * 144u));
+    Vec x = Vec(p.x);
+    float acc = 0.0;
+    for (uint t = lane; t < blocks * 4u; t += 32u) {
+        uint b = t >> 2;
+        uint c = t & 3u;
+        uint base = b * 36u;
+        vec2 dm = unpackHalf2x16(w.v[base]);
+        uvec3 s = uvec3(w.v[base + 1u], w.v[base + 2u], w.v[base + 3u]);
+        vec2 sm1 = scale_min(s, 2u * c);
+        vec2 sm2 = scale_min(s, 2u * c + 1u);
+        uint xo = b * 256u + 64u * c;
+        float lo = 0.0, hi = 0.0, sum_lo = 0.0, sum_hi = 0.0;
+        for (uint q = 0u; q < 8u; q++) {
+            uint word = w.v[base + 4u + 8u * c + q];
+            for (uint n = 0u; n < 4u; n++) {
+                uint byte = (word >> (8u * n)) & 0xFFu;
+                uint l = 4u * q + n;
+                float xl = x.v[xo + l];
+                float xh = x.v[xo + 32u + l];
+                lo += float(byte & 0xFu) * xl;
+                sum_lo += xl;
+                hi += float(byte >> 4) * xh;
+                sum_hi += xh;
+            }
+        }
+        acc += dm.x * sm1.x * lo - dm.y * sm1.y * sum_lo + dm.x * sm2.x * hi - dm.y * sm2.y * sum_hi;
+    }
+    acc = subgroupClusteredAdd(acc, 32u);
+    if (lane == 0u && row < p.rows) {
+        Out(p.y).v[row] = acc;
+    }
+}

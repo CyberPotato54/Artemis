@@ -1,0 +1,22 @@
+# The production config for `artemis serve`, as a template.
+#
+# Whoever installs or tests Artemis fills the four double-brace placeholders below (MODEL, PORT, API_KEY_FILE
+# and LOG_DIR) and writes the result as the config file: the installer fills the production port, the GPU test
+# runner a scratch port. `fill_template` in `crates/server/src/config.rs` and `New-ArtemisConfig` apply the same
+# rules: a value may hold no single quote, no newline and no opening double brace.
+#
+# Paths sit in TOML literal strings (single quotes), so a Windows path needs no escapes: in a basic string a
+# backslash starts an escape, and a drive path would not parse. Every path in the file is written so.
+#
+# Nothing else is set. The snapshot pool and parking keep their defaults.
+model = '{{MODEL}}'
+host = "127.0.0.1"
+port = {{PORT}}
+api_key_file = '{{API_KEY_FILE}}'
+health_service = "artemis"
+lazy_load = true
+idle_unload_s = 600
+queue_timeout_s = 300
+log_dir = '{{LOG_DIR}}'
+stall_s = 120
+stall_load_s = 300

@@ -1,0 +1,41 @@
+# Committed text is LF everywhere; Windows checkouts convert locally.
+* text=auto
+
+*.rs text eol=lf
+*.toml text eol=lf
+*.lock text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.comp text eol=lf
+*.glsl text eol=lf
+*.py text eol=lf
+*.ps1 text eol=lf
+*.psm1 text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.in text eol=lf
+
+# Binary data: byte-exact, never normalized.
+*.spv binary
+probes/m0/tests/fixtures/*.bin binary
+probes/m0/tests/fixtures/*.f32 binary
+crates/qwen36/tests/fixtures/*.bin binary
+crates/qwen36/tests/fixtures/*.f32 binary
+crates/engine/data/*.bin binary
+
+# Test data: byte-exact, so line endings and every other byte reach the tokenizer as committed.
+testdata/**/*.txt -text
+testdata/**/*.bin binary
+testdata/**/*.ids binary
+testdata/**/*.tokens binary
+testdata/golden/sources/* -text
+testdata/speed/sources/* -text
+testdata/**/*.fnv -text
+testdata/**/*.json -text
+testdata/**/*.count -text
+testdata/**/*.jinja -text
+testdata/clients/opencode/LICENSE-OpenCode -text
+crates/kernels/spirv/MANIFEST text eol=lf
+
+# Git hooks run under sh, which rejects CRLF.
+tools/git-hooks/* text eol=lf

@@ -1,0 +1,11 @@
+<|im_start|>user
+I have two PostgreSQL tables:
+
+```sql
+customers(id bigint primary key, name text, country text)
+orders(id bigint primary key, customer_id bigint references customers(id), total numeric(10,2), created_at timestamptz)
+```
+
+Write a query that returns, for each country, the three customers who spent the most in 2025, with their total spend and their rank within the country. Customers with the same total should share a rank.<|im_end|>
+<|im_start|>assistant
+<think>

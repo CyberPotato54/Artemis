@@ -1,0 +1,34 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// The MoE block's two outputs: moe = Σ_j w_j·ye[j] over the routed experts in routed order,
+// and shexp = sigmoid(sg)·sh, the shared expert scaled by its gate. Separate outputs so each tap is one operation's.
+// Workgroup y is the token of a batch: ye holds [tokens][k][n], w [tokens][k], sg [tokens], the rest [tokens][n].
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t ye;
+    uint64_t w;
+    uint64_t sh;
+    uint64_t sg;
+    uint64_t moe;
+    uint64_t shexp;
+    uint n;
+    uint k;
+} p;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x, tok = gl_WorkGroupID.y;
+    if (i >= p.n) {
+        return;
+    }
+    F32s ye = F32s(p.ye + 4ul * uint64_t(tok * p.k * p.n));
+    F32s w = F32s(p.w + 4ul * uint64_t(tok * p.k));
+    float m = 0.0;
+    for (uint j = 0u; j < p.k; j++) {
+        m += w.v[j] * ye.v[j * p.n + i];
+    }
+    uint at = tok * p.n + i;
+    F32s(p.moe).v[at] = m;
+    F32s(p.shexp).v[at] = F32s(p.sh).v[at] * sigmoid(F32s(p.sg).v[tok]);
+}

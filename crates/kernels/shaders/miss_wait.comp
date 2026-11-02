@@ -1,0 +1,79 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_realtime_clock : require
+#include "common.glsl"
+#include "mbox.glsl"
+
+// The CPU miss path's wait: invocation 0 reads the layer's mask, then the token's status, then, if the
+// mask is nonzero and no wait has failed this token, polls the layer's done flag (atomicOr(x, 0) on device-uncached
+// memory) bounded by max_spins polls and max_ticks of the device clock. A mask of 0 copies nothing, does not spin
+// and counts nothing (it is checked before the status, so a zero-mask layer is never a skip). On a timeout it counts
+// one in status[0]; a wait that finds status[0] already set gives up at once (status[1] counts those), so a token
+// costs one wait's bound when the CPU is gone. Then the workgroup copies, for each set mask bit j, the CPU's y[j]
+// (n_embd f32 at Y0 + layer * YSTRIDE + j * 4 * n_embd) into ye[j]. NOTHING is written on a timeout or a skip: the
+// serve-2 fallback pair computes those experts from the host addresses their overlay entries still hold, so the
+// token matches a share-0 one bit for bit. res_ (shared, never written out): 1 ok, 2 timeout, 3 skipped.
+layout(local_size_x = 256) in;
+layout(buffer_reference, std430, buffer_reference_align = 16) coherent readonly buffer V4r { uvec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer V4w { uvec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) coherent buffer ST { uint v[]; };
+layout(push_constant) uniform Push {
+    uint64_t mbox;
+    uint64_t ye;
+    uint64_t status;
+    uint layer;
+    uint seq;
+    uint n_embd;
+    uint max_spins;
+    uint max_ticks;
+    uint pad;
+} p;
+
+shared uint res_;
+shared uint mask_;
+
+void main() {
+    uint t = gl_LocalInvocationID.x;
+    if (t == 0u) {
+        MU m = MU(p.mbox);
+        ST st = ST(p.status);
+        uint res = 1u;
+        uint mask = m.v[(X0 + p.layer * XSTRIDE) / 4u + 3u];
+        if (mask == 0u) {
+            // Nothing routed to the CPU: nothing to wait for, nothing to copy, nothing counted.
+            res = 1u;
+        } else if (atomicOr(st.v[0], 0u) != 0u) {
+            res = 3u;
+            atomicAdd(st.v[1], 1u);
+        } else {
+            uint spins = 0u;
+            uint64_t t0 = clockRealtimeEXT();
+            while (atomicOr(m.v[done_word(p.layer)], 0u) != p.seq) {
+                spins++;
+                if (spins >= p.max_spins || clockRealtimeEXT() - t0 > uint64_t(p.max_ticks)) {
+                    atomicAdd(st.v[0], 1u);
+                    res = 2u;
+                    break;
+                }
+            }
+        }
+        mask_ = mask;
+        res_ = res;
+    }
+    barrier();
+    memoryBarrierBuffer();
+    uint r = res_;
+    if (r == 1u) {
+        for (uint j = 0u; j < 8u; j++) {
+            if ((mask_ & (1u << j)) != 0u) {
+                V4r y = V4r(p.mbox + uint64_t(Y0 + p.layer * YSTRIDE + j * 4u * p.n_embd));
+                V4w d = V4w(p.ye + uint64_t(j * 4u * p.n_embd));
+                for (uint i = t; i < p.n_embd / 4u; i += 256u) {
+                    d.v[i] = y.v[i];
+                }
+            }
+        }
+    }
+}

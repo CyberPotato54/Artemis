@@ -1,0 +1,31 @@
+<|im_start|>user
+Refactor this Node.js function to use async/await with `fs/promises` instead of callbacks. Keep the behaviour the same, including the error handling.
+
+```js
+const fs = require('fs');
+
+function loadConfig(path, callback) {
+  fs.readFile(path, 'utf8', (err, text) => {
+    if (err) {
+      if (err.code === 'ENOENT') return callback(null, {});
+      return callback(err);
+    }
+    let config;
+    try {
+      config = JSON.parse(text);
+    } catch (e) {
+      return callback(new Error(`bad JSON in ${path}: ${e.message}`));
+    }
+    fs.stat(path, (err, st) => {
+      if (err) return callback(err);
+      config.loadedAt = st.mtime;
+      callback(null, config);
+    });
+  });
+}
+```<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

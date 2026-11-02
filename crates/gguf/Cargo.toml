@@ -1,0 +1,11 @@
+[package]
+name = "gguf"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "A GGUF v3 reader, and a minimal writer for test models. It knows nothing about any model."
+
+[dependencies]
+memmap2.workspace = true

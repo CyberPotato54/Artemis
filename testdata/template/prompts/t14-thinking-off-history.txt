@@ -1,0 +1,15 @@
+<|im_start|>user
+What is 17 times 3?<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+17 times 3 is 51.<|im_end|>
+<|im_start|>user
+Now double that.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

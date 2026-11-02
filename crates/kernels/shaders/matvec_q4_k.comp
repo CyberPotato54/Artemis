@@ -1,0 +1,6 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#include "quant.glsl"
+#define WTYPE T_Q4_K
+#include "matvec.glsl"

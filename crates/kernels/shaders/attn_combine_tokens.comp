@@ -1,0 +1,76 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_control_flow_attributes : require
+#include "common.glsl"
+
+// attn_combine over up to 16 queries: workgroup (h, i, slice) merges query i's partials for dimensions
+// [64·slice, 64·slice + 64) of query head h, over query i's own split count ceil((n_ctx0 + i) / 256) (partials past it
+// are never read), in order 0, 1, ... with attn_combine's arithmetic and loads: M = max m_s, L = Σ l_s·exp(m_s - M),
+// y[d] = Σ acc_s[d]·exp(m_s - M) / L. `part` holds [tokens][n_head][max_split][hd + 2] and y [tokens][n_head·hd];
+// n_head is the grid's width.
+#define WG 64u
+layout(local_size_x = 64) in;
+layout(push_constant) uniform Push {
+    uint64_t part;
+    uint64_t y;
+    uint n_ctx0;
+    uint tokens;
+    uint hd;
+    uint max_split;
+} p;
+
+#define B 16u
+// The tree that takes M.
+shared float red[WG];
+
+void main() {
+    uint h = gl_WorkGroupID.x, i = gl_WorkGroupID.y, t = gl_LocalInvocationID.x;
+    // Uniform across the workgroup.
+    if (i >= p.tokens) {
+        return;
+    }
+    uint d = gl_WorkGroupID.z * WG + t;
+    bool live = d < p.hd;
+    uint n_head = gl_NumWorkGroups.x;
+    uint n_split = (p.n_ctx0 + i + 255u) / 256u;
+    uint stride = p.hd + 2u;
+    F32s part = F32s(p.part + uint64_t(4u * (i * n_head + h) * p.max_split * stride));
+    float mx = neg_inf();
+    for (uint s = t; s < n_split; s += WG) {
+        mx = max(mx, part.v[s * stride]);
+    }
+    red[t] = mx;
+    barrier();
+    for (uint st = WG / 2u; st > 0u; st >>= 1u) {
+        if (t < st) {
+            red[t] = max(red[t], red[t + st]);
+        }
+        barrier();
+    }
+    float m = red[0];
+    barrier();
+    float l = 0.0, acc = 0.0;
+    uint s = 0u;
+    // B splits' m, l and acc[d] loaded at a time, then taken in order.
+    for (; s + B <= n_split; s += B) {
+        float mm[B], ll[B], aa[B];
+        [[unroll]] for (uint j = 0u; j < B; j++) {
+            mm[j] = part.v[(s + j) * stride];
+            ll[j] = part.v[(s + j) * stride + 1u];
+            aa[j] = live ? part.v[(s + j) * stride + 2u + d] : 0.0;
+        }
+        [[unroll]] for (uint j = 0u; j < B; j++) {
+            float f = exp(mm[j] - m);
+            l += ll[j] * f;
+            acc += aa[j] * f;
+        }
+    }
+    for (; s < n_split; s++) {
+        float f = exp(part.v[s * stride] - m);
+        l += part.v[s * stride + 1u] * f;
+        acc += (live ? part.v[s * stride + 2u + d] : 0.0) * f;
+    }
+    if (live) {
+        F32s(p.y).v[(i * n_head + h) * p.hd + d] = acc / l;
+    }
+}

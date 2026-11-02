@@ -1,0 +1,78 @@
+<|im_start|>system
+# Tools
+
+You have access to the following functions:
+
+<tools>
+{"type": "function", "function": {"name": "record_values", "description": "Record a set of values.", "parameters": {"type": "object", "properties": {"n": {"type": "integer"}, "f": {"type": "number"}, "g": {"type": "number"}, "e": {"type": "number"}, "b": {"type": "boolean"}, "z": {"type": "null"}, "o": {"type": "object"}, "a": {"type": "array"}, "h": {"type": "number"}, "i": {"type": "number"}}}}}
+</tools>
+
+If you choose to call a function ONLY reply in the following format with NO suffix:
+
+<tool_call>
+<function=example_function_name>
+<parameter=example_parameter_1>
+value_1
+</parameter>
+<parameter=example_parameter_2>
+This is the value for the second parameter
+that can span
+multiple lines
+</parameter>
+</function>
+</tool_call>
+
+<IMPORTANT>
+Reminder:
+- Function calls MUST follow the specified format: an inner <function=...></function> block must be nested within <tool_call></tool_call> XML tags
+- Required parameters MUST be specified
+- You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after
+- If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
+</IMPORTANT><|im_end|>
+<|im_start|>user
+Record the sample values.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+<tool_call>
+<function=record_values>
+<parameter=n>
+3
+</parameter>
+<parameter=f>
+0.5
+</parameter>
+<parameter=g>
+1
+</parameter>
+<parameter=e>
+1e-07
+</parameter>
+<parameter=b>
+True
+</parameter>
+<parameter=z>
+None
+</parameter>
+<parameter=o>
+{"k": [1, "x"], "p": 1.23457, "q": 1.23457e+06}
+</parameter>
+<parameter=a>
+[1, 2.5, "s", 1.23457, 1.23457e+06]
+</parameter>
+<parameter=h>
+1.23457
+</parameter>
+<parameter=i>
+1.23457e+06
+</parameter>
+</function>
+</tool_call><|im_end|>
+<|im_start|>user
+<tool_response>
+Recorded.
+</tool_response><|im_end|>
+<|im_start|>assistant
+<think>

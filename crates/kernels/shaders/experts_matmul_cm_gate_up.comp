@@ -1,0 +1,197 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_KHR_cooperative_matrix : require
+#extension GL_KHR_memory_scope_semantics : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_control_flow_attributes : require
+#include "common.glsl"
+#include "silu_det.glsl"
+#include "quant.glsl"
+#include "quant8.glsl"
+#include "slots.glsl"
+
+// experts_matmul_gate_up on cooperative matrices, every weight and input split into two f16s
+// as in matmul_cm.glsl: workgroup (x, y) takes moe_group's tile y, up to 64 entries of one expert, and rows
+// 64x .. 64x + 64 of its gate and up matrices, read once through the table at whatever address the entry holds (a
+// cache slot, a staging buffer or pinned host memory: the same code on the same bytes, so the same bits). Entry c of
+// the tile is token list[first + c] / k; its row act[first + c] = silu_det(gate·x) ⊙ (up·x). Sixteen 16 × 16 tiles of
+// entries × rows for each of gate and up; tile i (entry block i / 4, row block i % 4) belongs to subgroup
+// i % gl_NumSubgroups. As in matmul_cm.glsl, each 32-value slice of k is summed from zero (each 16-value half adds
+// lo_x·hi_w, then hi_x·lo_w, then hi_x·hi_w), once for gate and once for up, and each slice's sum is added to its
+// output's running total with an ordinary f32 add (`precise`), since the hardware's accumulate inside coopMatMulAdd
+// measured biased. Each output adds its slices in order whatever the entry's place in the tile, so a token's rows
+// don't depend on the tile it falls in. An empty tile does nothing; a refused entry is recorded in the status buffer
+// and its rows are NaN, as experts_matmul_gate_up does. kernels::twin::moe::experts_matmul_cm_gate_up mirrors it.
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Tiles { uvec4 v[]; };
+
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t table;
+    uint64_t list;
+    uint64_t tiles;
+    uint64_t x;
+    uint64_t act;
+    uint64_t status;
+    uint layer_base;
+    uint n_embd;
+    uint n_ff;
+    uint gate_type;
+    uint up_type;
+    uint up_off;
+    uint layer;
+    uint k;
+} p;
+
+// dispatch.rs's EXPERTS_CM_GATE_UP_SHARED_BYTES (30,720) is this array's size, and Kernels::new checks it against the
+// device: change them together. During the k loop: gate hi, gate lo, up hi, up lo, x hi and x lo, each [64][40] packed
+// f16 pairs. After it, the first [64][68] floats are the output stage.
+#define SK 40u
+#define T1 (64u * SK / 2u)
+#define GH 0u
+#define GL T1
+#define UH (2u * T1)
+#define UL (3u * T1)
+#define XH (4u * T1)
+#define XL (5u * T1)
+#define ST 68u
+shared uint sm[6u * T1];
+
+void main() {
+    uvec4 tile = Tiles(p.tiles).v[gl_WorkGroupID.y];
+    if (tile.z == 0u) {
+        return;
+    }
+    uint id = gl_LocalInvocationIndex;
+    uint r0 = 64u * gl_WorkGroupID.x;
+    Slot sl = slot_at(p.table, p.layer_base + tile.x);
+    if (!usable(sl)) {
+        if (id == 0u) {
+            refuse(p.status, sl, p.layer, tile.x);
+        }
+        for (uint e = id; e < 64u * tile.z; e += 256u) {
+            uint r = r0 + e % 64u;
+            if (r < p.n_ff) {
+                F32s(p.act).v[(tile.y + e / 64u) * p.n_ff + r] = uintBitsToFloat(0x7FC00000u);
+            }
+        }
+        return;
+    }
+    uint s = gl_SubgroupID, ns = gl_NumSubgroups;
+    coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> ag[16], au[16];
+    [[unroll]] for (uint i = 0u; i < 16u; i++) {
+        ag[i] = coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(0.0);
+        au[i] = coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(0.0);
+    }
+    // Invocation id loads row (and entry) id / 4, values 8·(id % 4) .. + 8 of each 32-value slice.
+    uint lr = id / 4u, lq = 8u * (id % 4u);
+    bool rin = r0 + lr < p.n_ff, tin = lr < tile.z;
+    uint64_t grow = sl.addr + uint64_t(r0 + lr) * uint64_t(row_bytes(p.gate_type, p.n_embd));
+    uint64_t urow = sl.addr + uint64_t(p.up_off) + uint64_t(r0 + lr) * uint64_t(row_bytes(p.up_type, p.n_embd));
+    uint token = tin ? U32s(p.list).v[tile.y + lr] / p.k : 0u;
+    uint64_t xrow = p.x + 4ul * uint64_t(token) * uint64_t(p.n_embd);
+    uint at = (SK * lr + lq) / 2u;
+    for (uint k0 = 0u; k0 < p.n_embd; k0 += 32u) {
+        float gv[8], uv[8], xv[8];
+        if (rin) {
+            dq_eight(p.gate_type, grow, k0 + lq, gv);
+            dq_eight(p.up_type, urow, k0 + lq, uv);
+        } else {
+            [[unroll]] for (uint e = 0u; e < 8u; e++) {
+                gv[e] = 0.0;
+                uv[e] = 0.0;
+            }
+        }
+        if (tin) {
+            [[unroll]] for (uint e = 0u; e < 8u; e++) {
+                xv[e] = F32s(xrow).v[k0 + lq + e];
+            }
+        } else {
+            [[unroll]] for (uint e = 0u; e < 8u; e++) {
+                xv[e] = 0.0;
+            }
+        }
+        [[unroll]] for (uint e = 0u; e < 8u; e += 2u) {
+            uint lo;
+            sm[GH + at + e / 2u] = split2(gv[e], gv[e + 1u], lo);
+            sm[GL + at + e / 2u] = lo;
+            sm[UH + at + e / 2u] = split2(uv[e], uv[e + 1u], lo);
+            sm[UL + at + e / 2u] = lo;
+            sm[XH + at + e / 2u] = split2(xv[e], xv[e + 1u], lo);
+            sm[XL + at + e / 2u] = lo;
+        }
+        barrier();
+        [[unroll]] for (uint rb = 0u; rb < 4u; rb++) {
+            bool mine = false;
+            [[unroll]] for (uint cb = 0u; cb < 4u; cb++) {
+                mine = mine || ((4u * cb + rb) % ns == s);
+            }
+            if (mine) {
+                // The row block's gate and up weights for both 16-value halves (h0: values 0..16, h1: 16..32).
+                coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseB> bgh0, bgl0, bgh1, bgl1, buh0, bul0, buh1,
+                    bul1;
+                uint wb = (SK * 16u * rb) / 2u;
+                coopMatLoad(bgh0, sm, GH + wb, SK / 2u, gl_CooperativeMatrixLayoutColumnMajor);
+                coopMatLoad(bgl0, sm, GL + wb, SK / 2u, gl_CooperativeMatrixLayoutColumnMajor);
+                coopMatLoad(bgh1, sm, GH + wb + 8u, SK / 2u, gl_CooperativeMatrixLayoutColumnMajor);
+                coopMatLoad(bgl1, sm, GL + wb + 8u, SK / 2u, gl_CooperativeMatrixLayoutColumnMajor);
+                coopMatLoad(buh0, sm, UH + wb, SK / 2u, gl_CooperativeMatrixLayoutColumnMajor);
+                coopMatLoad(bul0, sm, UL + wb, SK / 2u, gl_CooperativeMatrixLayoutColumnMajor);
+                coopMatLoad(buh1, sm, UH + wb + 8u, SK / 2u, gl_CooperativeMatrixLayoutColumnMajor);
+                coopMatLoad(bul1, sm, UL + wb + 8u, SK / 2u, gl_CooperativeMatrixLayoutColumnMajor);
+                [[unroll]] for (uint cb = 0u; cb < 4u; cb++) {
+                    uint i = 4u * cb + rb;
+                    if (i % ns == s) {
+                        coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseA> ah0, al0, ah1, al1;
+                        uint xb = (SK * 16u * cb) / 2u;
+                        coopMatLoad(ah0, sm, XH + xb, SK / 2u, gl_CooperativeMatrixLayoutRowMajor);
+                        coopMatLoad(al0, sm, XL + xb, SK / 2u, gl_CooperativeMatrixLayoutRowMajor);
+                        coopMatLoad(ah1, sm, XH + xb + 8u, SK / 2u, gl_CooperativeMatrixLayoutRowMajor);
+                        coopMatLoad(al1, sm, XL + xb + 8u, SK / 2u, gl_CooperativeMatrixLayoutRowMajor);
+                        // The slice's gate sum from zero (each half adds lo_x·hi_w, hi_x·lo_w, then hi_x·hi_w), then
+                        // one ordinary f32 add per output, kept apart from the products (`precise`); then up's the same
+                        // way. Gate's partial is added before up's is started, so up's can take its registers.
+                        coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> pg =
+                            coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(0.0);
+                        pg = coopMatMulAdd(al0, bgh0, pg);
+                        pg = coopMatMulAdd(ah0, bgl0, pg);
+                        pg = coopMatMulAdd(ah0, bgh0, pg);
+                        pg = coopMatMulAdd(al1, bgh1, pg);
+                        pg = coopMatMulAdd(ah1, bgl1, pg);
+                        pg = coopMatMulAdd(ah1, bgh1, pg);
+                        precise coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> sg = ag[i] + pg;
+                        ag[i] = sg;
+                        coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> pu =
+                            coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>(0.0);
+                        pu = coopMatMulAdd(al0, buh0, pu);
+                        pu = coopMatMulAdd(ah0, bul0, pu);
+                        pu = coopMatMulAdd(ah0, buh0, pu);
+                        pu = coopMatMulAdd(al1, buh1, pu);
+                        pu = coopMatMulAdd(ah1, bul1, pu);
+                        pu = coopMatMulAdd(ah1, buh1, pu);
+                        precise coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator> su = au[i] + pu;
+                        au[i] = su;
+                    }
+                }
+            }
+        }
+        barrier();
+    }
+    // SwiGLU element by element (a tile's gate and up accumulators hold the same elements in the same order), then
+    // through the stage, so only the tile's entries and rows in range are written.
+    [[unroll]] for (uint i = 0u; i < 16u; i++) {
+        if (i % ns == s) {
+            for (uint e = 0u; e < ag[i].length(); e++) {
+                ag[i][e] = silu_det(ag[i][e]) * au[i][e];
+            }
+            coopMatStore(ag[i], sm, ST * 16u * (i / 4u) + 16u * (i % 4u), ST, gl_CooperativeMatrixLayoutRowMajor);
+        }
+    }
+    barrier();
+    for (uint e = id; e < 64u * 64u; e += 256u) {
+        uint c = e / 64u, r = e % 64u;
+        if (c < tile.z && r0 + r < p.n_ff) {
+            F32s(p.act).v[(tile.y + c) * p.n_ff + r0 + r] = uintBitsToFloat(sm[ST * c + r]);
+        }
+    }
+}

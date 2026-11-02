@@ -1,0 +1,7 @@
+# The rule set scan-secrets.ps1 passes to gitleaks with --config: gitleaks' own default rules, the same ones the forge's
+# secret-scan job uses. Passing a config explicitly stops gitleaks looking for a .gitleaks.toml in the scanned folder
+# or repository (and for GITLEAKS_CONFIG), so scanned content cannot replace or weaken the rules.
+title = "Artemis secret scan"
+
+[extend]
+useDefault = true

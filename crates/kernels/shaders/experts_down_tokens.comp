@@ -1,0 +1,86 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#include "quant.glsl"
+#include "slots.glsl"
+#define RED_ROWS 8u
+#define RED_N 32u
+#include "reduce.glsl"
+
+// experts_down for up to 16 tokens, each routed expert's down matrix read once. `list` is moe_unique's:
+// workgroup (x, u) computes rows 8x .. 8x + 8 of the u-th distinct expert's down projection for every token that
+// chose it. Token i's input is act[i][j] (act is [tokens][k][n_ff], j the choice of ids[i][0 .. k] naming the
+// expert), which is not at a fixed stride from token to token, so the unit is dotted with unit_dot_n_at; each token's
+// value is experts_down's bit for bit, written to y[(i·k + j) · n_embd + row]. A workgroup with u >= count exits (the
+// whole group, before any barrier). An unusable slot gives NaN and refuse(), as experts_down does; there is no CPU
+// path (serve) here.
+layout(local_size_x = 32, local_size_y = 8) in;
+layout(push_constant) uniform Push {
+    uint64_t table;
+    uint64_t ids;
+    uint64_t list;
+    uint64_t act;
+    uint64_t y;
+    uint64_t status;
+    uint layer_base;
+    uint n_ff;
+    uint n_embd;
+    uint down_type;
+    uint down_off;
+    uint layer;
+    uint k;
+    uint pad;
+} p;
+
+shared uint choice_[MAX_TOKENS];
+
+void main() {
+    uint lane = gl_LocalInvocationID.x, r = gl_LocalInvocationID.y;
+    uint row = gl_WorkGroupID.x * 8u + r;
+    U32s l = U32s(p.list);
+    uint u = gl_WorkGroupID.y;
+    if (u >= l.v[0]) {
+        return;
+    }
+    uint e = l.v[1u + 2u * u], mask = l.v[2u + 2u * u];
+    // Token i's choice j: the first of its k ids that names e (a token's ids are distinct).
+    uint flat_id = r * 32u + lane;
+    if (flat_id < MAX_TOKENS && ((mask >> flat_id) & 1u) != 0u) {
+        uint j = 0u;
+        while (j + 1u < p.k && uint(F32s(p.ids).v[flat_id * p.k + j]) != e) {
+            j++;
+        }
+        choice_[flat_id] = j;
+    }
+    barrier();
+    Slot s = slot_at(p.table, p.layer_base + e);
+    bool compute = row < p.n_embd && usable(s);
+    uint xoff[MAX_TOKENS];
+    for (uint i = 0u; i < MAX_TOKENS; i++) {
+        xoff[i] = ((mask >> i) & 1u) != 0u ? (i * p.k + choice_[i]) * p.n_ff : 0u;
+    }
+    precise float acc[MAX_TOKENS];
+    for (uint i = 0u; i < MAX_TOKENS; i++) {
+        acc[i] = 0.0;
+    }
+    if (compute) {
+        uint64_t dr = s.addr + uint64_t(p.down_off) + uint64_t(row) * uint64_t(row_bytes(p.down_type, p.n_ff));
+        for (uint q = lane; q < p.n_ff / 32u; q += 32u) {
+            unit_dot_n_at(p.down_type, dr, q, p.act, xoff, mask, acc);
+        }
+    }
+    // The tree reductions hold barriers: every invocation reaches them, token by token in the mask's order.
+    for (uint m = mask; m != 0u; m &= m - 1u) {
+        uint i = uint(findLSB(m));
+        float total = red_sum(r, lane, acc[i]);
+        if (lane == 0u && row < p.n_embd) {
+            uint at = (i * p.k + choice_[i]) * p.n_embd + row;
+            if (!usable(s)) {
+                refuse(p.status, s, p.layer, e);
+                F32s(p.y).v[at] = uintBitsToFloat(0x7FC00000u);
+            } else {
+                F32s(p.y).v[at] = total;
+            }
+        }
+    }
+}

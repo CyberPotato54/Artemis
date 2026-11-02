@@ -1,0 +1,7 @@
+<|im_start|>user
+Write a Python class `LRUCache` with `get(key)` and `put(key, value)` methods that both run in O(1) time. Use `collections.OrderedDict`. The constructor takes a `capacity`; when the cache is full, `put` evicts the least recently used entry, and `get` returns -1 for a missing key. Add a short usage example at the end.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

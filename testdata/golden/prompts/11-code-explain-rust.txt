@@ -1,0 +1,16 @@
+<|im_start|>user
+What does this Rust function do, and why does it need the lifetime `'a`? Keep it short.
+
+```rust
+fn longest_word<'a>(text: &'a str) -> Option<&'a str> {
+    text.split_whitespace()
+        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
+        .filter(|w| !w.is_empty())
+        .max_by_key(|w| w.chars().count())
+}
+```<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

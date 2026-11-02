@@ -1,0 +1,207 @@
+# CI for the public repository, on GitHub-hosted runners only: a fork's pull request never runs build scripts on a
+# machine the maintainer owns. Three jobs: Linux (fmt, clippy, CPU tests, Python tests), Windows (the same four steps,
+# then the PowerShell script tests) and a gitleaks scan of the full history.
+#
+# What this workflow does not run:
+#  - The release scripts (tools/build-release.ps1 and friends). build-release.ps1 needs glslc, and a hosted runner has
+#    no Vulkan SDK, so its shader check cannot run here.
+#  - The GPU tests. They are #[ignore]d and run on the maintainer's test PC.
+#  - The ignored test scan_secrets_pwsh. It drives tools/scan-secrets.ps1 through hooks and the git config key
+#    artemis.gitleaksUrl, which names the maintainer's own forge, and a hosted runner cannot reach it.
+#    public_snapshot_pwsh does run: its script scans the export with that same script, so the Windows job puts the
+#    pinned gitleaks zip, downloaded from GitHub and checked against the script's SHA-256, where the script looks
+#    for its cache. The script then never needs the forge URL.
+#
+# Every action is pinned by a full commit SHA, with the version in a trailing comment. Upgrade: look up the tag's
+# commit, replace the SHA and the comment together.
+
+name: ci
+
+# Pushes to main (and release tags) plus pull requests, so a branch with an open pull request runs once.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  linux:
+    name: fmt, clippy, test (Linux, Rust 1.98.1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # A digest-pinned image (library/rust:1.98.1-bookworm), also used by the maintainers' internal CI. Keep both in step
+    # with rust-toolchain.toml.
+    container: rust:1.98.1-bookworm@sha256:93ce27a88655056a51dbdd8f5f2d7ddc071c7b0070fb288a37b5a285fc83971e
+    env:
+      # No GPU and no Vulkan SDK here: build.rs copies the committed SPIR-V and stubs only a stale shader.
+      ARTEMIS_SKIP_SHADERS: "1"
+      # The hosted runner's disk does not hold the workspace's debug test binaries with debug info (the build stopped
+      # with "No space left on device"). No debug info and no incremental cache keep the target folder small.
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      # The rust image ships no node, so actions/checkout can't run in it. Plain git does the job; the token rides
+      # GIT_CONFIG_* env as an http.extraHeader, never a URL or argv. It fetches the exact commit the event names.
+      - name: Checkout
+        env:
+          CI_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          # The job runs as root in the container while the runner owns the workspace, so git refuses it as a
+          # repository of another owner unless the folder is marked safe.
+          git config --global --add safe.directory "$PWD"
+          export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraHeader
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$CI_TOKEN" | base64 -w0)"
+          export GIT_CONFIG_VALUE_0
+          git init -q .
+          git fetch -q --depth 1 "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git" "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
+      - name: Toolchain
+        run: rustup component add rustfmt clippy && cargo --version && cargo fmt --version && cargo clippy --version
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Test (CPU only)
+        run: cargo test --workspace --locked
+      # The image may lack python3: install it when missing, and fail the job if that fails.
+      - name: Test (Python tools)
+        run: command -v python3 || (apt-get update && apt-get install -y --no-install-recommends python3); python3 --version && python3 -I -m unittest discover -s tools/py/tests -v
+
+  windows:
+    name: fmt, clippy, test, pwsh tests (Windows, Rust 1.98.1)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      ARTEMIS_SKIP_SHADERS: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      # rust-toolchain.toml names the channel and the components. The first cargo call through the rustup proxy installs
+      # them, so `rustup show` comes after it and prints the installed toolchain.
+      - name: Toolchain
+        shell: pwsh
+        run: |
+          cargo --version
+          rustup show
+          cargo fmt --version
+          cargo clippy --version
+      - name: Format
+        shell: pwsh
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        shell: pwsh
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Test (CPU only)
+        shell: pwsh
+        run: cargo test --workspace --locked
+      - name: Test (Python tools)
+        shell: pwsh
+        run: python -I -m unittest discover -s tools/py/tests -v
+      # tools/scan-secrets.ps1 uses a cached, hash-verified gitleaks zip and downloads from the forge only when the
+      # cache lacks it. Seed the cache from GitHub's release with the same pinned SHA-256 as the script, and point
+      # ARTEMIS_TOOLS_DIR at it for the later steps. artemis.gitleaksUrl is never read once the zip is there.
+      - name: Seed the pinned gitleaks
+        shell: pwsh
+        run: |
+          $version = '8.30.1'
+          $archive = "gitleaks_${version}_windows_x64.zip"
+          $pinned = 'd29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e'
+          $tools = Join-Path $env:RUNNER_TEMP 'artemis-tools'
+          $cache = Join-Path $tools "gitleaks-$version"
+          New-Item -ItemType Directory -Force $cache | Out-Null
+          $zip = Join-Path $cache $archive
+          Invoke-WebRequest -Uri "https://github.com/gitleaks/gitleaks/releases/download/v$version/$archive" -OutFile $zip -UseBasicParsing
+          $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $pinned) { throw "gitleaks zip has SHA-256 $actual, expected $pinned" }
+          # Extract gitleaks.exe now, where the script keeps it. The test binary runs scripts in parallel, and several
+          # of them extracting the same file at once fail with a sharing violation.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $za = [System.IO.Compression.ZipFile]::OpenRead($zip)
+          try {
+            $entry = $za.Entries | Where-Object { $_.FullName -eq 'gitleaks.exe' } | Select-Object -First 1
+            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $cache 'gitleaks.exe'), $true)
+          } finally { $za.Dispose() }
+          "ARTEMIS_TOOLS_DIR=$tools" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      # The ignored tests that drive the PowerShell scripts. They need pwsh and git, which the runner has, and no GPU.
+      - name: Test (PowerShell scripts)
+        shell: pwsh
+        run: cargo test -p artemis-tools --test artemis_server_pwsh --test hygiene_pwsh --test test_messages_pwsh --test public_snapshot_pwsh -- --ignored
+
+  secrets:
+    name: gitleaks (full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # The full history of every branch the event fetched. The scan covers every commit.
+      - name: Checkout (full history)
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The same gitleaks version and SHA-256 as the maintainers' internal secret scan. The tarball comes from the
+      # project's public release on GitHub (this repository has no forge), and the checksum is checked before the
+      # binary runs.
+      - name: Scan every commit for secrets
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          version=8.30.1
+          archive="gitleaks_${version}_linux_x64.tar.gz"
+          expected="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+          install_dir="${RUNNER_TEMP:?RUNNER_TEMP is required}/gitleaks-${version}"
+          mkdir -p "$install_dir"
+          curl --fail --location --silent --show-error \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${archive}" \
+            --output "$install_dir/$archive"
+          printf '%s  %s\n' "$expected" "$install_dir/$archive" | sha256sum --check -
+          tar -xzf "$install_dir/$archive" -C "$install_dir" gitleaks
+
+          # The rules (tools/gitleaks.toml) and the reviewed fingerprints (.gitleaksignore). On a pull request they come
+          # from the base branch, so a fork cannot weaken its own scan by editing them. gitleaks also reads a
+          # .gitleaksignore and a .gitleaks.toml from the scanned folder itself, so on a pull request the checkout (which
+          # is throwaway) gets the base's .gitleaksignore, or none, and loses any .gitleaks.toml. A base without
+          # tools/gitleaks.toml gets the same default rules inline. On a push the checkout's own copies are the reviewed
+          # ones. Inline `gitleaks:allow` comments in a pull request's own files are still honoured.
+          rules=tools/gitleaks.toml
+          if [ "$EVENT_NAME" = pull_request ]; then
+            base="origin/${BASE_REF:?BASE_REF is required on a pull request}"
+            rules="$RUNNER_TEMP/gitleaks-rules.toml"
+            if git cat-file -e "$base:tools/gitleaks.toml" 2>/dev/null; then
+              git show "$base:tools/gitleaks.toml" > "$rules"
+            else
+              echo "$base has no tools/gitleaks.toml; scanning with gitleaks' default rules"
+              printf 'title = "Artemis secret scan"\n\n[extend]\nuseDefault = true\n' > "$rules"
+            fi
+            if git cat-file -e "$base:.gitleaksignore" 2>/dev/null; then
+              git show "$base:.gitleaksignore" > .gitleaksignore
+            else
+              rm -f .gitleaksignore
+            fi
+            rm -f .gitleaks.toml
+          fi
+
+          # GITLEAKS_* variables (GITLEAKS_CONFIG, ...) can replace the rules: clear them, as tools/scan-secrets.ps1 does.
+          for name in $(compgen -e | grep '^GITLEAKS_' || true); do unset "$name"; done
+
+          # --redact so a real finding is reported without the CI log becoming a second copy of the leak. `gitleaks git`
+          # exits 0 after an ERR line when its own git log fails, which is no scan, so an ERR line fails the job.
+          code=0
+          out=$("$install_dir/gitleaks" git . --config "$rules" --redact --verbose --no-banner --no-color 2>&1) || code=$?
+          printf '%s\n' "$out"
+          if grep -Eq '^[^[:space:]]+[[:space:]]+ERR[[:space:]]' <<<"$out"; then
+            echo "gitleaks reported an error, so the history was not fully scanned" >&2
+            exit 3
+          fi
+          exit "$code"

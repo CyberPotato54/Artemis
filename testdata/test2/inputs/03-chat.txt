@@ -1,0 +1,8 @@
+<|im_start|>user
+What is the weather in Paris?<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+<tool_call>

@@ -1,0 +1,8 @@
+<|im_start|>user
+Explain what this regular expression accepts, piece by piece, then give two strings it accepts and two it rejects:
+
+```
+^(?=.*[A-Z])(?=.*\d)(?!.*\s)[A-Za-z\d@$!%*?&]{8,64}$
+```<|im_end|>
+<|im_start|>assistant
+<think>

@@ -1,0 +1,4 @@
+<|im_start|>user
+First part. Second part.<|im_end|>
+<|im_start|>assistant
+<think>

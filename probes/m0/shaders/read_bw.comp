@@ -1,0 +1,35 @@
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
+
+// Reads n_vec4 x 16 bytes at `src` (VRAM or pinned host memory), grid-stride so loads coalesce, and writes one XOR
+// per workgroup to `dst`, so the CPU can prove every byte was read.
+layout(local_size_x = 256) in;
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Src { uvec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) writeonly buffer Dst { uint v[]; };
+layout(push_constant) uniform Push { uint64_t src; uint64_t dst; uint n_vec4; uint pad; } p;
+
+shared uint partial[64];
+
+void main() {
+    Src s = Src(p.src);
+    uint stride = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+    uvec4 acc = uvec4(0u);
+    for (uint i = gl_GlobalInvocationID.x; i < p.n_vec4; i += stride) {
+        acc ^= s.v[i];
+    }
+    uint r = subgroupXor(acc.x ^ acc.y ^ acc.z ^ acc.w);
+    if (subgroupElect()) {
+        partial[gl_SubgroupID] = r;
+    }
+    barrier();
+    if (gl_LocalInvocationIndex == 0u) {
+        uint t = 0u;
+        for (uint i = 0u; i < gl_NumSubgroups; i++) {
+            t ^= partial[i];
+        }
+        Dst(p.dst).v[gl_WorkGroupID.x] = t;
+    }
+}

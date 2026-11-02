@@ -1,0 +1,27 @@
+[workspace]
+resolver = "2"
+members = ["probes/m0", "crates/gguf", "crates/qwen36", "crates/tools", "crates/vk", "crates/kernels", "crates/engine", "crates/cpu_expert", "crates/server"]
+# A bare `cargo build` or `cargo test` at the root skips probes/m0, which compiles its own shaders with glslc.
+default-members = ["crates/gguf", "crates/qwen36", "crates/tools", "crates/vk", "crates/kernels", "crates/engine", "crates/cpu_expert", "crates/server"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+repository = "https://github.com/CyberPotato54/Artemis"
+
+[workspace.dependencies]
+anyhow = "1"
+ash = "0.38"
+clap = { version = "4", features = ["derive"] }
+half = "2"
+memmap2 = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokenizers = { version = "0.22", default-features = false, features = ["onig"] }
+
+# The tokenizer is the slowest part of a debug test that builds a megabyte-scale prompt (the 15 MiB request in
+# crates/server/tests/openai.rs took 32 s unoptimised); optimising this one crate leaves debug builds otherwise as
+# they are.
+[profile.dev.package.tokenizers]
+opt-level = 3

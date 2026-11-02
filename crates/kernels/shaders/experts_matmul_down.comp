@@ -1,0 +1,96 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#include "quant.glsl"
+#include "slots.glsl"
+
+// The routed experts' down projections for a batch, grouped by expert: workgroup (x, y) takes
+// moe_group's tile y, up to 64 entries of one expert, and rows 64x .. 64x + 64 of its down matrix, read once through
+// the slot table. Entry i's input is act[i] (experts_matmul_gate_up's output, in list order); its output goes to row
+// list[i] = t·k + j of ye ([tokens][k][n_embd]), the routed order moe_combine reads. Each dot product is summed over
+// the inputs in order, as matmul's tiles sum them. An empty tile does nothing; a refused entry is recorded in the
+// status buffer and its rows are NaN.
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Tiles { uvec4 v[]; };
+
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(push_constant) uniform Push {
+    uint64_t table;
+    uint64_t list;
+    uint64_t tiles;
+    uint64_t act;
+    uint64_t ye;
+    uint64_t status;
+    uint layer_base;
+    uint n_ff;
+    uint n_embd;
+    uint down_type;
+    uint down_off;
+    uint layer;
+} p;
+
+shared float ws[2048];
+shared float xs[2048];
+
+void main() {
+    uvec4 tile = Tiles(p.tiles).v[gl_WorkGroupID.y];
+    if (tile.z == 0u) {
+        return;
+    }
+    uint tx = gl_LocalInvocationID.x, ty = gl_LocalInvocationID.y;
+    uint id = 16u * ty + tx;
+    uint r0 = 64u * gl_WorkGroupID.x;
+    Slot s = slot_at(p.table, p.layer_base + tile.x);
+    if (!usable(s)) {
+        if (id == 0u) {
+            refuse(p.status, s, p.layer, tile.x);
+        }
+        for (uint e = id; e < 64u * tile.z; e += 256u) {
+            uint r = r0 + e % 64u;
+            if (r < p.n_embd) {
+                uint row = U32s(p.list).v[tile.y + e / 64u];
+                F32s(p.ye).v[row * p.n_embd + r] = uintBitsToFloat(0x7FC00000u);
+            }
+        }
+        return;
+    }
+    uint lr = id / 4u, lk = 8u * (id % 4u);
+    bool rin = r0 + lr < p.n_embd, tin = lr < tile.z;
+    uint64_t wrow = s.addr + uint64_t(p.down_off) + uint64_t(r0 + lr) * uint64_t(row_bytes(p.down_type, p.n_ff));
+    uint64_t xrow = p.act + 4ul * uint64_t(tile.y + lr) * uint64_t(p.n_ff);
+    precise float acc[16];
+    for (uint i = 0u; i < 16u; i++) {
+        acc[i] = 0.0;
+    }
+    for (uint k0 = 0u; k0 < p.n_ff; k0 += 32u) {
+        for (uint e = 0u; e < 8u; e++) {
+            uint kk = lk + e;
+            ws[64u * kk + lr] = rin ? dq(p.down_type, wrow, k0 + kk) : 0.0;
+            xs[64u * kk + lr] = tin ? F32s(xrow).v[k0 + kk] : 0.0;
+        }
+        barrier();
+        for (uint kk = 0u; kk < 32u; kk++) {
+            vec4 a = vec4(ws[64u * kk + 4u * ty], ws[64u * kk + 4u * ty + 1u], ws[64u * kk + 4u * ty + 2u],
+                          ws[64u * kk + 4u * ty + 3u]);
+            vec4 b = vec4(xs[64u * kk + 4u * tx], xs[64u * kk + 4u * tx + 1u], xs[64u * kk + 4u * tx + 2u],
+                          xs[64u * kk + 4u * tx + 3u]);
+            for (uint i = 0u; i < 4u; i++) {
+                for (uint j = 0u; j < 4u; j++) {
+                    acc[4u * i + j] = acc[4u * i + j] + a[i] * b[j];
+                }
+            }
+        }
+        barrier();
+    }
+    for (uint j = 0u; j < 4u; j++) {
+        uint c = 4u * tx + j;
+        if (c < tile.z) {
+            uint row = U32s(p.list).v[tile.y + c];
+            for (uint i = 0u; i < 4u; i++) {
+                uint r = r0 + 4u * ty + i;
+                if (r < p.n_embd) {
+                    F32s(p.ye).v[row * p.n_embd + r] = acc[4u * i + j];
+                }
+            }
+        }
+    }
+}

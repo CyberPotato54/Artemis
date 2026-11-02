@@ -1,0 +1,7 @@
+<|im_start|>user
+Write a polite but firm email to my landlord. The kitchen tap has been dripping for two weeks; I reported it on the 3rd and nobody has come. Ask for a repair date this week. Keep it under 150 words and sign it as Sam.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

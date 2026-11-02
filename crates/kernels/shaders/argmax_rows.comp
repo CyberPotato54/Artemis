@@ -1,0 +1,72 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// The draft's pick: ids[slot] = the index of logits' largest finite value, ties to the lower index,
+// or NO_DRAFT (0xFFFFFFFF) when the row has no finite value; rows[slot] = embd + id * row_bytes (row 0's address for
+// NO_DRAFT), the next draft row's embedding address for embed_rows. One workgroup: each thread scans a strided share in
+// ascending index order, then a tree over (value, index) pairs halves its stride each step. kernels::twin::argmax
+// mirrors it; the result is exact, so the order matters only for ties, which go to the lower index everywhere.
+layout(buffer_reference, std430, buffer_reference_align = 8) buffer U64s { uint64_t v[]; };
+
+layout(local_size_x = 1024) in;
+layout(push_constant) uniform Push {
+    uint64_t logits;
+    uint64_t ids;
+    uint64_t rows;
+    uint64_t embd;
+    uint n;
+    uint row_bytes;
+    uint slot;
+    uint pad;
+} p;
+
+const uint NO_DRAFT = 0xFFFFFFFFu;
+
+shared float val_[1024];
+shared uint idx_[1024];
+
+// Finite is the exponent field not all ones, read from the bits so no fast-math assumption can drop it.
+bool finite_bits(float v) {
+    return (floatBitsToUint(v) & 0x7F800000u) != 0x7F800000u;
+}
+
+// Whether pair a (value, index) beats pair b: a valid index beats none; a larger value beats a smaller; equal values go
+// to the lower index.
+bool beats(float va, uint ia, float vb, uint ib) {
+    if (ia == NO_DRAFT) {
+        return false;
+    }
+    if (ib == NO_DRAFT) {
+        return true;
+    }
+    return va > vb || (va == vb && ia < ib);
+}
+
+void main() {
+    uint lane = gl_LocalInvocationID.x;
+    float best = 0.0;
+    uint bi = NO_DRAFT;
+    for (uint i = lane; i < p.n; i += 1024u) {
+        float v = F32s(p.logits).v[i];
+        if (finite_bits(v) && beats(v, i, best, bi)) {
+            best = v;
+            bi = i;
+        }
+    }
+    val_[lane] = best;
+    idx_[lane] = bi;
+    barrier();
+    for (uint s = 512u; s > 0u; s >>= 1u) {
+        if (lane < s && beats(val_[lane + s], idx_[lane + s], val_[lane], idx_[lane])) {
+            val_[lane] = val_[lane + s];
+            idx_[lane] = idx_[lane + s];
+        }
+        barrier();
+    }
+    if (lane == 0u) {
+        uint id = idx_[0];
+        U32s(p.ids).v[p.slot] = id;
+        U64s(p.rows).v[p.slot] = p.embd + uint64_t(id == NO_DRAFT ? 0u : id) * uint64_t(p.row_bytes);
+    }
+}

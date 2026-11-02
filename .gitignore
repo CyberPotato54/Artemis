@@ -1,0 +1,9 @@
+/target/
+# Ad-hoc probe output; committed evidence lives in the docs folder.
+/results.jsonl
+/tools/py/.venv/
+__pycache__/
+# Local agent state and downloaded speed-test sources.
+/.claude/
+/.superpowers/
+/testdata/speed/fetched/

@@ -1,0 +1,3 @@
+fn main() {
+    let total: u32 = (0..10).sum();
+}

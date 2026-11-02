@@ -1,0 +1,88 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#include "silu_det.glsl"
+#include "quant.glsl"
+#include "slots.glsl"
+#include "mbox.glsl"
+#define RED_ROWS 8u
+#define RED_N 32u
+#include "reduce.glsl"
+
+// The routed experts' gate and up projections and SwiGLU: workgroup (x, j) computes rows
+// 8x .. 8x + 8 of routed expert j = ids[j], reading its weights through the slot table at whatever address the entry
+// holds. Each row's gate and up dot products use matvec's layout (unit_dot per lane, then the tree).
+// y[j][row] = silu_det(gate·x) · (up·x).
+//
+// serve: 0 refuses a CPU entry (NaN and the status, as before the CPU path); 1 skips it (writes +0, no
+// refuse); 2 is the fallback pair, which computes a CPU entry from its host address only when this token's wait did
+// not succeed (status[0] != 0 at the mailbox, this token's timeout count: this layer's wait or an earlier one timed
+// out; or the layer's done flag is not seq) and writes nothing otherwise: a late answer is wasted, never trusted, and
+// the HOST and VRAM entries were computed by the serve-1 pair already. The flag reads are idempotent, so every
+// workgroup may make them.
+layout(local_size_x = 32, local_size_y = 8) in;
+layout(push_constant) uniform Push {
+    uint64_t table;
+    uint64_t ids;
+    uint64_t x;
+    uint64_t y;
+    uint64_t status;
+    uint64_t mbox;
+    uint layer_base;
+    uint n_embd;
+    uint n_ff;
+    uint gate_type;
+    uint up_type;
+    uint up_off;
+    uint layer;
+    uint seq;
+    uint serve;
+} p;
+
+void main() {
+    uint lane = gl_LocalInvocationID.x, r = gl_LocalInvocationID.y;
+    uint row = gl_WorkGroupID.x * 8u + r;
+    uint j = gl_WorkGroupID.y;
+    uint e = uint(F32s(p.ids).v[j]);
+    Slot s = slot_at(p.table, p.layer_base + e);
+    bool as_host = false;
+    if (p.serve == 2u && s.loc == WHERE_CPU && s.addr != 0ul) {
+        MU m = MU(p.mbox);
+        uint st = atomicOr(m.v[STATUS_WORD], 0u);
+        uint dn = atomicOr(m.v[done_word(p.layer)], 0u);
+        as_host = st != 0u || dn != p.seq;
+    }
+    bool compute = row < p.n_ff && ((p.serve != 2u && usable(s)) || as_host);
+    float g = 0.0, u = 0.0;
+    if (compute) {
+        uint64_t gr = s.addr + uint64_t(row) * uint64_t(row_bytes(p.gate_type, p.n_embd));
+        uint64_t ur = s.addr + uint64_t(p.up_off) + uint64_t(row) * uint64_t(row_bytes(p.up_type, p.n_embd));
+        for (uint q = lane; q < p.n_embd / 32u; q += 32u) {
+            g += unit_dot(p.gate_type, gr, q, p.x);
+            u += unit_dot(p.up_type, ur, q, p.x);
+        }
+    }
+    float gs = red_sum(r, lane, g);
+    float us = red_sum(r, lane, u);
+    if (lane == 0u && row < p.n_ff) {
+        if (p.serve == 2u) {
+            if (as_host) {
+                F32s(p.y).v[j * p.n_ff + row] = silu_det(gs) * us;
+            } else if (!usable(s) && !(s.loc == WHERE_CPU && s.addr != 0ul)) {
+                // A corrupt entry: the serve-1 pair refused it already; keep the status loud.
+                refuse(p.status, s, p.layer, e);
+            }
+            // A CPU entry whose wait succeeded (the wait copied its y), and every HOST and VRAM entry (the
+            // serve-1 pair computed it): nothing to write.
+        } else if (p.serve == 1u && s.loc == WHERE_CPU && s.addr != 0ul) {
+            // serve 1: skip the routed CPU entry (+0, no refuse).
+            F32s(p.y).v[j * p.n_ff + row] = 0.0;
+        } else if (!usable(s)) {
+            // serve 0's CPU entries and every corrupt entry, in every serve.
+            refuse(p.status, s, p.layer, e);
+            F32s(p.y).v[j * p.n_ff + row] = uintBitsToFloat(0x7FC00000u);
+        } else {
+            F32s(p.y).v[j * p.n_ff + row] = silu_det(gs) * us;
+        }
+    }
+}

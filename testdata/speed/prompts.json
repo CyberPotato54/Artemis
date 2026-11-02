@@ -1,0 +1,38 @@
+{
+  "note": "The spike's three speed prompts (from the 2026-10-08 expert-cache spike's spec_client.py), used by the decode speed gate. Each is one user message, rendered with thinking off. The edit prompt quotes the first 9,000 characters of CPython's Lib/json/encoder.py, committed in speed/sources/ with its PSF licence text beside it (2026-10-31).",
+  "sampling": {"temp": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0, "max_tokens": 700, "seeds": [1234, 1235]},
+  "sources": [
+    {
+      "id": "cpython-json-encoder",
+      "url": "https://raw.githubusercontent.com/python/cpython/v3.13.3/Lib/json/encoder.py",
+      "sha256": "c541dfbf3bd73dcd11fbeae6f1aa133626bfb1161cc4a8a7b5b22b6543992e27",
+      "kind": "code",
+      "pinned": true,
+      "license": "PSF-2.0",
+      "used": "the first 9,000 characters, in the edit prompt",
+      "path": "speed/sources/encoder.py",
+      "committed": true
+    }
+  ],
+  "prompts": [
+    {
+      "id": "write",
+      "committed": true,
+      "content": [{"text": "Write a Python module that implements an LRU cache with TTL expiry, thread safety, and a decorator form. Include docstrings and type hints. Code only."}]
+    },
+    {
+      "id": "edit",
+      "committed": true,
+      "content": [
+        {"text": "Here is a file. Return the COMPLETE file unchanged except: rename the class JSONEncoder to JsonEncoder everywhere. No commentary.\n\n```python\n"},
+        {"source": "cpython-json-encoder", "chars": 9000},
+        {"text": "\n```"}
+      ]
+    },
+    {
+      "id": "explain",
+      "committed": true,
+      "content": [{"text": "Explain, for an experienced engineer, how speculative decoding with a multi-token-prediction head works and when it stops paying off. About 300 words."}]
+    }
+  ]
+}

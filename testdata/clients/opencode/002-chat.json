@@ -1,0 +1,45 @@
+{
+  "client": "opencode",
+  "version": "2.0.30",
+  "seq": 2,
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "query": "",
+  "headers": {
+    "Authorization": "<masked>",
+    "Content-Type": "application/json",
+    "User-Agent": "opencode/latest/2.0.30/cli",
+    "b3": "8641c9dd40e0fe84cd04af3f33335d39-5619c6c142f0eebe-1-898155aba5843fcb",
+    "traceparent": "00-8641c9dd40e0fe84cd04af3f33335d39-5619c6c142f0eebe-01",
+    "x-opencode-client": "cli",
+    "x-opencode-project": "561a3c14967659570e035d0deaac0e6f8beb398f",
+    "x-opencode-session": "ses_ea95bb644ffeIfmzNn6upr2V1k",
+    "x-opencode-session-id": "ses_ea95bb644ffeIfmzNn6upr2V1k",
+    "x-session-affinity": "ses_ea95bb644ffeIfmzNn6upr2V1k",
+    "x-session-id": "ses_ea95bb644ffeIfmzNn6upr2V1k",
+    "Connection": "keep-alive",
+    "Accept": "*/*",
+    "Host": "127.0.0.1:8090",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
+    "Content-Length": "2447"
+  },
+  "body": {
+    "model": "qwen3.6-35b-a3b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "xxx xxx x xxxxx xxxxxxxxxx xxx xxxxxx xxxx x xxxxxx xxxxxx xxxxxxx xxxxx\n\nxxxxxx\nxxxxxxxx x xxxxx xxxxx xxxx xxxxx xxxx xxx xxxx xxxx xxxx xxxxxxxxxxxx xxxxxx\n\nxxxxxx xxx xxxxx xx xxxxxxx\nxxx xxx xxxxxxxxxx xx xxx xxxx xxxx x xxxx xxxxx xxxxx xxxxx\nxxxx xxxxxx xxxx xxx\nx x xxxxxx xxxx\nx xxxx xxxxxxxxxx\nx xx xxxxxxxxxxxx\nxxxxxxx\n\nxxxxxxx\nx xxx xxxx xxx xxx xxxx xxxxxxxx xx xxx xxxx xxxxxxx xxx xxx xxxxxxxxxxx\nx xxxxx xxxx xx xxxxxxxxxxxxx xxxxxxx xxx xxxx xxxxxxxxx x xx xxxx xxxxx\nx xxxxx xxxxxxx xxxx xxxxx xx xxx xxxxx xxxxx xxxxx xxxxxx xxxxx xxxxxx xxxxx xxxxxx\nx xxxxx xx xxx xxxx xxxxx xx xxxxxxxx xxx xxxx xxxxx xx xxxxxxxx\nx xxxx xxxx xxxxxxxx x xxxxx xxxxxxxxxx xxxxxxxx xxxx xxxxxx xxxxxxxx xxxx xxxxxxxxxxx\nx xxxx x xxxx xx xxxxxxxxxx xxxxx xx xxxx xxx xxxx xxxxx xx xx xxxx xxx xxxxx xxx xxxx xxxx xxxx xxxxxx xx\nx xxxx xxxxxx xxxxxxxxx xxxxxx xxxxxxxx xxxxxxxxxx xxxx xxxxx\nx xxxxxxx xxxx xxxxx xxx xx xx\nx xxxxx xxxxxx xxxx xxxxx\nx xxxxx xxx xxxxx\nx xxxxx xxxxxxx xx xxxxxxxxxx xxxx xxxxxxxx x xxxxx xxx xxx xxxxxxxxxxxx\nx xxx xxxxx xxxxxx xxxxx xxxxxxx xxxxxxxxxxxxx xx xxxxxxxxxxxx xxxx xxxxxxxxxx x xxxxx\nx xx xxx xxx xxx xxxxxx xxxxxxxx x xxxxx xx xxxxxxxx xxxxx xxx xxxxx\nx xxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx xxxx xx xxx xxxxx xx xxxxxxxx\nx xx xxx xxxx xxxxxxx xx xxxxx xx xxxxxxxxxxxxxx xxxxx xxxxxxxx xxxxxx xxxxxxx xxxx xxxxxxx\n  xx xxxxxx x xxxxx xxxx xxxxxxxx xxx xxxxxx xxxx xx xxxxxx xxxxx xx xxxxxxxxx xxxxx xxxxxxxxx xxxxx xxxxx xxxxx xxxxxxxx xxxxx\nxxxxxxxx\n\nxxxxxxxxxx\nxxxxxx xxx xxxxxx xx xxxxxxxxxxx xx xxxxxxxxx xxxxxxxxxx xxx xxxxxx\nxxxxxxxxx xxxx xxxxxxxx xx xxxxxxxxxxx xxxx xxxxxxx\nxxxx xx xxxxxx xxxxxxxx xx xxxxxx xxxxxxx xxxxxxxxxxxxx\nxxxxxxxxxx xxxx xxxxxxxxx xx xxxx xxxxxxxx xxxxxxxxxxxxxx\nxxxx xx x xxxxxxx xxxxxxxx xx xx xxxx xx xxxxxxxx xxx xxxxxxxxxx\nxxxxx xxxxxxxxx xxx xxxxx xxxxxx xx xxxxx xxxxx xxxx xxxxxxxxx\nxxxxxxxxxxxxxxxxxxx xxx xxx xxx xxxxxxx xxxxx xxxxxxxx xx xxxxxxxxxx xxxxxxx xxxxx xxxxxxx\nxxxxxxxxxxxxxxxxx xxxx xx xxxxxxx xx xxxxxx xxx xxx\nxxxxx xx xxxxxxxxxxxxx xx xxxxxx xxxxxx\nxxxxxxxxx xxx xxxx xxxx xxxxxxx xx xxxx xxxx xxxxxx xx xxx\nxxxxxxxxxxx"
+      },
+      {
+        "role": "user",
+        "content": "\"Read notes.txt and say how many stages it lists.\""
+      }
+    ],
+    "stream": true,
+    "stream_options": {
+      "include_usage": true
+    },
+    "store": false,
+    "reasoning_effort": "low"
+  }
+}

@@ -1,0 +1,51 @@
+#!/bin/sh
+# Scans the commits a push sends for secrets, with the same pinned gitleaks the forge's secret-scan job runs.
+# Git passes "<remote> <url>" as arguments and "<local ref> <local sha> <remote ref> <remote sha>" lines on stdin.
+# Install: pwsh tools/install-hooks.ps1 (sets core.hooksPath to tools/git-hooks).
+
+if ! command -v pwsh >/dev/null 2>&1; then
+  echo "pre-push: pwsh (PowerShell 7) is not installed, so the secret scan cannot run; the push is stopped. git push --no-verify skips this check." >&2
+  exit 1
+fi
+
+here=$(cd "$(dirname "$0")/.." && { pwd -W 2>/dev/null || pwd; })
+script="$here/scan-secrets.ps1"
+zero=0000000000000000000000000000000000000000
+findings=0
+failed=
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # A deletion sends no commits.
+  case "$local_sha" in
+    "$zero"*) continue ;;
+  esac
+  # Nothing new reaches the remote on a branch it has: scan what it lacks. A new branch, or a remote commit this
+  # clone does not have, scans every commit no remote branch holds yet.
+  if [ "$remote_sha" != "$zero" ] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    range="$remote_sha..$local_sha"
+  else
+    range="$local_sha --not --remotes"
+  fi
+  out=$(pwsh -NoProfile -File "$script" -Mode range -Range "$range" 2>&1 </dev/null)
+  rc=$?
+  [ -n "$out" ] && printf '%s\n' "$out"
+  case "$rc" in
+    0) ;;
+    1) findings=1 ;;
+    *)
+      reason=$(printf '%s\n' "$out" | sed -n 's/^scan-secrets: //p' | tail -n 1)
+      [ -n "$reason" ] || reason="pwsh exited with code $rc"
+      failed="$reason"
+      ;;
+  esac
+done
+
+if [ -n "$failed" ]; then
+  echo "the secret scan could not run: $failed; the push is stopped. git push --no-verify skips this check." >&2
+  exit 1
+fi
+if [ "$findings" -ne 0 ]; then
+  echo "gitleaks found a possible secret; the push is stopped. Fix it, or for a reviewed false positive add its fingerprint to .gitleaksignore (or a gitleaks:allow comment) and push again. git push --no-verify skips this check." >&2
+  exit 1
+fi
+exit 0

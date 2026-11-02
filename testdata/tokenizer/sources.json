@@ -1,0 +1,209 @@
+[
+  {
+    "id": "pg-1342",
+    "url": "https://www.gutenberg.org/cache/epub/1342/pg1342.txt",
+    "license": "Public domain (Project Gutenberg #1342, Pride and Prejudice)",
+    "kind": "prose",
+    "pinned": true,
+    "sha256": "3f6bb9d6f78e0293b56acd4714dd68cb7d6d1d293402031ce9d5a216bcaf9d75",
+    "used": "the first 250,000 characters after the Project Gutenberg header"
+  },
+  {
+    "id": "pg-84",
+    "url": "https://www.gutenberg.org/cache/epub/84/pg84.txt",
+    "license": "Public domain (Project Gutenberg #84, Frankenstein)",
+    "kind": "prose",
+    "pinned": true,
+    "sha256": "7810cd483cffcf2cc8a1d8f0d5807931e69d4f48cd14149b8c76f88af82fead3",
+    "used": "the first 100,000 characters after the Project Gutenberg header"
+  },
+  {
+    "id": "llama.cpp-b11509-llama-vocab.cpp",
+    "url": "https://raw.githubusercontent.com/ggml-org/llama.cpp/b11509/src/llama-vocab.cpp",
+    "license": "MIT",
+    "kind": "code",
+    "pinned": true,
+    "sha256": "e772949cb8ad204f87845cb5e18f11e8a419fdb872e5f645012e5b6a9f84588f",
+    "used": "the first 150,000 characters"
+  },
+  {
+    "id": "transformers-v4.57.0-generation-utils.py",
+    "url": "https://raw.githubusercontent.com/huggingface/transformers/v4.57.0/src/transformers/generation/utils.py",
+    "license": "Apache-2.0",
+    "kind": "code",
+    "pinned": true,
+    "sha256": "a20024b1e82ed5361a524d238d2197be5407abc91297dd9888c57e8284d63fef",
+    "used": "the first 150,000 characters"
+  },
+  {
+    "id": "typescript-v5.9.2-scanner.ts",
+    "url": "https://raw.githubusercontent.com/microsoft/TypeScript/v5.9.2/src/compiler/scanner.ts",
+    "license": "Apache-2.0",
+    "kind": "code",
+    "pinned": true,
+    "sha256": "02f9e8f02e234b0e917e753a7b74f975c9b9b95f7f01ee4bc151081ed43dea49",
+    "used": "the first 100,000 characters"
+  },
+  {
+    "id": "rust-1.90.0-core-str-mod.rs",
+    "url": "https://raw.githubusercontent.com/rust-lang/rust/1.90.0/library/core/src/str/mod.rs",
+    "license": "MIT OR Apache-2.0",
+    "kind": "code",
+    "pinned": true,
+    "sha256": "27e5268c0e4d586cca103b77bbb967f791726605ac142d3b51e452849ce28c53",
+    "used": "the first 100,000 characters"
+  },
+  {
+    "id": "tatoeba-cmn",
+    "url": "https://downloads.tatoeba.org/exports/per_language/cmn/cmn_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "f907d1928eeaaaee75bac1987fb3349bd79c96caa8f1467b58cca042aa99a6aa",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-jpn",
+    "url": "https://downloads.tatoeba.org/exports/per_language/jpn/jpn_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "dd942845be225766229fa6391cbb7796c6b8bdcaea38809e65720cc406dace93",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-kor",
+    "url": "https://downloads.tatoeba.org/exports/per_language/kor/kor_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "a1aa17c42d7c22c9c83a5e4f2259fd254ac208162cb29a3b53922847e7ec5d6a",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-rus",
+    "url": "https://downloads.tatoeba.org/exports/per_language/rus/rus_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "e3cd7877e41a9e4b4b77c09975441ae62b8e7403b5a23596f8e92d5b8a24d8bf",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-ara",
+    "url": "https://downloads.tatoeba.org/exports/per_language/ara/ara_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "ade96f2fe5ec2a0c3e63edb717886fb96ce09333e2e716f32721de6da7882d23",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-hin",
+    "url": "https://downloads.tatoeba.org/exports/per_language/hin/hin_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "54064a02179d57e3b9db41a5990cdfd68205db77ef05e2e4e03f53be93df6f61",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-deu",
+    "url": "https://downloads.tatoeba.org/exports/per_language/deu/deu_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "d44d01f9b4977ae5fb9a9f9a38c27621c278cdc850a483715bd0cee65686056a",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-fra",
+    "url": "https://downloads.tatoeba.org/exports/per_language/fra/fra_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "35642092ea1de824882942c3519860cf900109d3921160e65482f64031bea13a",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-spa",
+    "url": "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "aef78e2e2d383f32d15beee1e406ed12291dcd72c1c2bfbfe2d8c27868516439",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-vie",
+    "url": "https://downloads.tatoeba.org/exports/per_language/vie/vie_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "25aa17ad8c5a694250fa928fc691344ee5b379d952336e8fa8f17508fe573494",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-tha",
+    "url": "https://downloads.tatoeba.org/exports/per_language/tha/tha_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "d03a70b0189cf410e3b6ce4d6e0daa4062a01518d71ed1efd2fbed619669e5a4",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-heb",
+    "url": "https://downloads.tatoeba.org/exports/per_language/heb/heb_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "dfc2124217694b29060f00d4b959c6eed51c2eb6a77984f2edf5067a36e917a6",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-ell",
+    "url": "https://downloads.tatoeba.org/exports/per_language/ell/ell_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "40a786e0767134a94a8c531e96d67b1a7ee3ddc89a5dc85302dc1aa9f83c58ab",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-tur",
+    "url": "https://downloads.tatoeba.org/exports/per_language/tur/tur_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "b41ff083d48834af8522887e312407e27b7e9e426703965a5b841ec88a02d560",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-ukr",
+    "url": "https://downloads.tatoeba.org/exports/per_language/ukr/ukr_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "a055fe3ea333ce9051610f933b02f6ad4869edfc5e5928d5b5ac1cbae0d04362",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "tatoeba-pol",
+    "url": "https://downloads.tatoeba.org/exports/per_language/pol/pol_sentences.tsv.bz2",
+    "license": "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)",
+    "kind": "multilingual",
+    "pinned": false,
+    "sha256": "4d916109e3ac4c8a23abb7bcf2d97ceca9167e9a399d01fc7b730b7378cde801",
+    "used": "the first 12,000 characters of sentences, in id order"
+  },
+  {
+    "id": "artemis-edge-cases",
+    "url": "tools/py/build_tokenizer_corpus.py",
+    "license": "MIT OR Apache-2.0",
+    "kind": "edge cases",
+    "pinned": true,
+    "sha256": "0df8e41eae55e76ca6b8f140de4340f5120914fbf2b279a326c4b7d55bef06c1",
+    "used": "all of it"
+  }
+]

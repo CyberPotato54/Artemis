@@ -1,0 +1,69 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_control_flow_attributes : require
+#include "common.glsl"
+
+// Attention's second half: per query head, the chunks' partials merged in order 0, 1, ...: M = max m_s,
+// L = Σ l_s·exp(m_s - M), y[d] = Σ acc_s[d]·exp(m_s - M) / L.
+// Workgroup (h, slice) writes dimensions [64·slice, 64·slice + 64) of head h (ATTN_COMBINE_DIMS in dispatch.rs), so a
+// head spreads over ceil(hd / 64) workgroups; each output dimension's sum stays one thread's, in split order, written
+// as before (f = exp(m_s - M), then l += l_s·f and acc += acc_s[d]·f). M comes from a tree (a max is exact in any
+// order). Each thread loads B splits' m_s, l_s and acc_s[d] ahead of their sums, so the loads overlap.
+#define WG 64u
+layout(local_size_x = 64) in;
+layout(push_constant) uniform Push {
+    uint64_t part;
+    uint64_t y;
+    uint hd;
+    uint n_split;
+} p;
+
+#define B 16u
+// The tree that takes M.
+shared float red[WG];
+
+void main() {
+    uint h = gl_WorkGroupID.x, t = gl_LocalInvocationID.x;
+    uint d = gl_WorkGroupID.y * WG + t;
+    bool live = d < p.hd;
+    uint stride = p.hd + 2u;
+    F32s part = F32s(p.part + uint64_t(4u * h * p.n_split * stride));
+    float mx = neg_inf();
+    for (uint s = t; s < p.n_split; s += WG) {
+        mx = max(mx, part.v[s * stride]);
+    }
+    red[t] = mx;
+    barrier();
+    for (uint st = WG / 2u; st > 0u; st >>= 1u) {
+        if (t < st) {
+            red[t] = max(red[t], red[t + st]);
+        }
+        barrier();
+    }
+    float m = red[0];
+    barrier();
+    float l = 0.0, acc = 0.0;
+    uint s = 0u;
+    // B splits' m, l and acc[d] loaded at a time, then taken in order.
+    for (; s + B <= p.n_split; s += B) {
+        float mm[B], ll[B], aa[B];
+        [[unroll]] for (uint j = 0u; j < B; j++) {
+            mm[j] = part.v[(s + j) * stride];
+            ll[j] = part.v[(s + j) * stride + 1u];
+            aa[j] = live ? part.v[(s + j) * stride + 2u + d] : 0.0;
+        }
+        [[unroll]] for (uint j = 0u; j < B; j++) {
+            float f = exp(mm[j] - m);
+            l += ll[j] * f;
+            acc += aa[j] * f;
+        }
+    }
+    for (; s < p.n_split; s++) {
+        float f = exp(part.v[s * stride] - m);
+        l += part.v[s * stride + 1u] * f;
+        acc += (live ? part.v[s * stride + 2u + d] : 0.0) * f;
+    }
+    if (live) {
+        F32s(p.y).v[h * p.hd + d] = acc / l;
+    }
+}

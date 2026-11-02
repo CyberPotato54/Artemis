@@ -1,0 +1,16 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "max_tokens": 16,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "ping",
+        "strict": true
+      }
+    }
+  ],
+  "messages": [
+    {"role": "user", "content": "Ping the service."}
+  ]
+}

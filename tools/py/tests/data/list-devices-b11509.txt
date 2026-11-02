@@ -1,0 +1,3 @@
+Available devices:
+  Vulkan0: AMD Radeon(TM) Graphics (48470 MiB, 46046 MiB free)
+  Vulkan1: AMD Radeon RX 9070 XT (16304 MiB, 15416 MiB free)

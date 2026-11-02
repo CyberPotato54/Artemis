@@ -1,0 +1,32 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#define RED_N 64u
+#include "reduce.glsl"
+
+// Per value head h: y = RMSNorm(o_h) ⊙ w ⊙ silu(z_h), with w (ssm_norm) shared by every
+// head. One workgroup per head; thread t sums o[t]², o[t + 64]², ... in order before the tree.
+layout(local_size_x = 64) in;
+layout(push_constant) uniform Push {
+    uint64_t o;
+    uint64_t z;
+    uint64_t w;
+    uint64_t y;
+    uint dv;
+    float eps;
+} p;
+
+void main() {
+    uint t = gl_LocalInvocationID.x;
+    uint base = gl_WorkGroupID.x * p.dv;
+    F32s o = F32s(p.o);
+    float ss = 0.0;
+    for (uint i = t; i < p.dv; i += 64u) {
+        ss += o.v[base + i] * o.v[base + i];
+    }
+    float total = red_sum(0u, t, ss);
+    float scale = 1.0 / sqrt(total / float(p.dv) + p.eps);
+    for (uint i = t; i < p.dv; i += 64u) {
+        F32s(p.y).v[base + i] = ((o.v[base + i] * scale) * F32s(p.w).v[i]) * silu(F32s(p.z).v[base + i]);
+    }
+}

@@ -1,0 +1,37 @@
+[package]
+name = "artemis-tools"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "The artemis binary, and the tap-set I/O, comparison and test rules it uses"
+
+[[bin]]
+name = "artemis"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+engine = { path = "../engine" }
+gguf = { path = "../gguf" }
+kernels = { path = "../kernels" }
+qwen36 = { path = "../qwen36" }
+serde.workspace = true
+serde_json.workspace = true
+server = { path = "../server" }
+# main calls vk::limit_dll_search_to_system32 before anything else.
+vk = { path = "../vk" }
+tokio = { version = "1.53", default-features = false, features = ["rt", "rt-multi-thread", "net", "time", "sync", "signal", "macros"] }
+tracing = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+
+# Setup's lock check asks whether the pid it holds is still a running process, on Windows only.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_Foundation"] }
+
+[dev-dependencies]
+engine = { path = "../engine", features = ["fake"] }

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "rust-1.90.0-core-iter-iterator.rs",
+    "url": "https://raw.githubusercontent.com/rust-lang/rust/1.90.0/library/core/src/iter/traits/iterator.rs",
+    "license": "MIT OR Apache-2.0",
+    "kind": "code",
+    "pinned": true,
+    "sha256": "cb1976c3f6b02b3c79d40d4460493452cfcdb5e58002fc196d90d2a6b9793196",
+    "characters": 47477,
+    "used": "the first 47,477 characters, line ends as LF"
+  },
+  {
+    "id": "llama.cpp-b11509-ggml.c",
+    "url": "https://raw.githubusercontent.com/ggml-org/llama.cpp/b11509/ggml/src/ggml.c",
+    "license": "MIT",
+    "kind": "code",
+    "pinned": true,
+    "sha256": "7e8bf2b60598b50d718f46aa3c36c9293b10f4e7dfde6844f0693e6fc976d505",
+    "characters": 47465,
+    "used": "the first 47,465 characters, line ends as LF"
+  },
+  {
+    "id": "transformers-v4.57.0-modeling-utils.py",
+    "url": "https://raw.githubusercontent.com/huggingface/transformers/v4.57.0/src/transformers/modeling_utils.py",
+    "license": "Apache-2.0",
+    "kind": "code",
+    "pinned": true,
+    "sha256": "7d5c231470e143232d7dcff7276be68e8a599835d8619e469ef0ff8bd302cb95",
+    "characters": 47458,
+    "used": "the first 47,458 characters, line ends as LF"
+  },
+  {
+    "id": "typescript-v5.9.2-core.ts",
+    "url": "https://raw.githubusercontent.com/microsoft/TypeScript/v5.9.2/src/compiler/core.ts",
+    "license": "Apache-2.0",
+    "kind": "code",
+    "pinned": true,
+    "sha256": "1512daf31972388d2c43d07b96ee202f659ba8e74e356b8f01d1f6e92192e92c",
+    "characters": 47495,
+    "used": "the first 47,495 characters, line ends as LF"
+  },
+  {
+    "id": "pg-1661",
+    "url": "https://www.gutenberg.org/cache/epub/1661/pg1661.txt",
+    "license": "Public domain (Project Gutenberg #1661, The Adventures of Sherlock Holmes)",
+    "kind": "prose",
+    "pinned": true,
+    "sha256": "922e2a12ccb43a4c9544c260b2166c6ad2097aeb5957faeee113f173bb857cd0",
+    "characters": 106979,
+    "used": "the first 106,979 characters after the Project Gutenberg header, line ends as LF"
+  },
+  {
+    "id": "pg-98",
+    "url": "https://www.gutenberg.org/cache/epub/98/pg98.txt",
+    "license": "Public domain (Project Gutenberg #98, A Tale of Two Cities)",
+    "kind": "prose",
+    "pinned": true,
+    "sha256": "d54c2b80d40a40b982cd88852c6180bb944d95acdb028af3d0e01a1750681784",
+    "characters": 106989,
+    "used": "the first 106,989 characters after the Project Gutenberg header, line ends as LF"
+  }
+]

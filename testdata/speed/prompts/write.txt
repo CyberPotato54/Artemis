@@ -1,0 +1,7 @@
+<|im_start|>user
+Write a Python module that implements an LRU cache with TTL expiry, thread safety, and a decorator form. Include docstrings and type hints. Code only.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

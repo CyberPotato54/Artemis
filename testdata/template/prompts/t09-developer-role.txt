@@ -1,0 +1,6 @@
+<|im_start|>system
+Answer in one short sentence.<|im_end|>
+<|im_start|>user
+Why is the sky blue?<|im_end|>
+<|im_start|>assistant
+<think>

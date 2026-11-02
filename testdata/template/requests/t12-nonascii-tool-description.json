@@ -1,0 +1,21 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "max_tokens": 16,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "list_files",
+        "description": "Résumé of 日本語 files 🎉 <a> & 'b'",
+        "parameters": {
+          "type": "object",
+          "properties": {"dir": {"type": "string", "description": "Directory to list."}},
+          "required": ["dir"]
+        }
+      }
+    }
+  ],
+  "messages": [
+    {"role": "user", "content": "List the files in the docs directory."}
+  ]
+}

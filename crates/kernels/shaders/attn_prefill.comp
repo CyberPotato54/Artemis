@@ -1,0 +1,169 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// Causal attention for a batch of queries over the f16 KV cache. Workgroup (b, h) takes queries
+// 16b .. 16b + 16 of the batch for query head h, which reads KV head h / group; query i sits at position pos + i and
+// sees cached positions 0 ..= pos + i. Keys are walked in blocks of 32 from position 0, always the same blocks
+// whatever the batch: per block, each score is q·k over the head's dims in order, times scale; then per query an
+// online softmax step (m' = max(m, the block's max), α = exp(m − m') or exactly 1 if m' = m, p_j = exp(s_j − m'),
+// l' = l·α + Σ_j p_j in order, acc' = acc·α + Σ_j p_j·v_j in order), and finally y = acc / l. Keys past a query's
+// position score −inf, so p is exactly 0 there, and a block wholly past it changes nothing. Keys past the batch's last
+// position are read as zeros, so stale cache rows never enter. q and y hold [tokens][n_head][hd]; hd is a multiple of
+// 8, at most 256.
+//
+// Shared memory holds only a block of keys or values (as the cache's f16s, K then V in turn), the block's scores and
+// each query's running max, sum and scale: 19,136 bytes, within the 32,768 the RX 9070 XT allows. q is read from the
+// buffer as the scores need it: each invocation scores one query against two keys, so each q load feeds both. Then
+// each invocation sums eight dims of two queries' values, so each value read from shared memory feeds two products and
+// each p eight. The caches, q and y move 16 bytes a load or store; the sums still run one value at a time, in order.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t q;
+    uint64_t kc;
+    uint64_t vc;
+    uint64_t y;
+    uint pos;
+    uint tokens;
+    uint hd;
+    uint group;
+    uint kv_width;
+    float scale;
+} p;
+
+// QB and KB are dispatch.rs's ATTN_QUERIES and ATTN_KEYS: they must change together (and ATTN_SHARED_BYTES with them).
+#define QB 16u
+#define KB 32u
+// A key's row: 32 uvec4s of eight halves each (hd 256) and one more, so the block's rows start in different banks.
+#define KS 33u
+// kv: 32 rows × 33 uvec4 = 16,896 bytes. ss: query i's p_j at ss[j · 8 + i / 2][i % 2], 16 × 32 floats = 2,048 bytes.
+// ms, ls and as: 3 × 16 floats = 192 bytes.
+shared uvec4 kv[KB * KS];
+shared vec2 ss[KB * QB / 2u];
+shared float ms[QB];
+shared float ls[QB];
+shared float as[QB];
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Halves8 { uvec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Vec4s { vec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer OutVec4s { vec4 v[]; };
+
+// Rows k0 .. k0 + 32 of KV head kvh's cache into kv as they are, eight halves (16 bytes) a load; rows past `last` as
+// zeros.
+void load_block(uint64_t cache, uint k0, uint last, uint kvh, uint t) {
+    uint per = p.hd / 8u;
+    for (uint e = t; e < KB * per; e += 256u) {
+        uint j = e / per, c = e % per;
+        uint kp = k0 + j;
+        uint64_t at = cache + 2ul * uint64_t(kp * p.kv_width + kvh * p.hd + 8u * c);
+        kv[j * KS + c] = kp <= last ? Halves8(at).v[0] : uvec4(0u);
+    }
+}
+
+// s + a·k over eight dims in order: a holds them as two vec4s, k as eight halves.
+float dot8_in_order(vec4 a0, vec4 a1, uvec4 k, float s) {
+    vec2 k0 = unpackHalf2x16(k.x), k1 = unpackHalf2x16(k.y), k2 = unpackHalf2x16(k.z), k3 = unpackHalf2x16(k.w);
+    s += a0.x * k0.x;
+    s += a0.y * k0.y;
+    s += a0.z * k1.x;
+    s += a0.w * k1.y;
+    s += a1.x * k2.x;
+    s += a1.y * k2.y;
+    s += a1.z * k3.x;
+    s += a1.w * k3.y;
+    return s;
+}
+
+void main() {
+    uint b = gl_WorkGroupID.x, h = gl_WorkGroupID.y, t = gl_LocalInvocationID.x;
+    uint n_head = gl_NumWorkGroups.y;
+    uint kvh = h / p.group;
+    uint q0 = QB * b;
+    uint nq = min(QB, p.tokens - q0);
+    uint last = p.pos + q0 + nq - 1u;
+    uint per = p.hd / 8u;
+    if (t < QB) {
+        ms[t] = neg_inf();
+        ls[t] = 0.0;
+    }
+    // Scores: invocation t takes query si = t / 16 against keys sj = t % 16 and sj + 16. A query slot past the batch
+    // reads the batch's last query, and its scores are masked.
+    uint si = t / 16u, sj = t % 16u;
+    uint64_t qrow = p.q + 4ul * uint64_t(((q0 + min(si, nq - 1u)) * n_head + h) * p.hd);
+    // Values: invocation t takes dims 8·vd .. 8·vd + 8 for queries vq and vq + 1. acc[0] and acc[1] are query vq's
+    // eight dims, acc[2] and acc[3] query vq + 1's.
+    uint vd = t % 32u, vq = 2u * (t / 32u);
+    vec4 acc[4];
+    for (uint k = 0u; k < 4u; k++) {
+        acc[k] = vec4(0.0);
+    }
+    for (uint k0 = 0u; k0 <= last; k0 += KB) {
+        load_block(p.kc, k0, last, kvh, t);
+        barrier();
+        float s0 = 0.0, s1 = 0.0;
+        for (uint c = 0u; c < per; c++) {
+            vec4 qa = Vec4s(qrow).v[2u * c], qb = Vec4s(qrow).v[2u * c + 1u];
+            s0 = dot8_in_order(qa, qb, kv[sj * KS + c], s0);
+            s1 = dot8_in_order(qa, qb, kv[(sj + 16u) * KS + c], s1);
+        }
+        uint qpos = p.pos + q0 + si, kp = k0 + sj;
+        ss[sj * (QB / 2u) + si / 2u][si % 2u] = si < nq && kp <= qpos ? s0 * p.scale : neg_inf();
+        ss[(sj + 16u) * (QB / 2u) + si / 2u][si % 2u] = si < nq && kp + 16u <= qpos ? s1 * p.scale : neg_inf();
+        barrier();
+        if (t < QB && t >= nq) {
+            // A query past the batch's end: nothing to add.
+            for (uint j = 0u; j < KB; j++) {
+                ss[j * (QB / 2u) + t / 2u][t % 2u] = 0.0;
+            }
+            as[t] = 0.0;
+        }
+        if (t < nq) {
+            float bm = neg_inf();
+            for (uint j = 0u; j < KB; j++) {
+                bm = max(bm, ss[j * (QB / 2u) + t / 2u][t % 2u]);
+            }
+            float m = max(ms[t], bm);
+            float a = m == ms[t] ? 1.0 : exp(ms[t] - m);
+            float ps = 0.0;
+            for (uint j = 0u; j < KB; j++) {
+                float pj = exp(ss[j * (QB / 2u) + t / 2u][t % 2u] - m);
+                ss[j * (QB / 2u) + t / 2u][t % 2u] = pj;
+                ps += pj;
+            }
+            ls[t] = ls[t] * a + ps;
+            ms[t] = m;
+            as[t] = a;
+        }
+        load_block(p.vc, k0, last, kvh, t);
+        barrier();
+        if (vd < per) {
+            float a0 = as[vq], a1 = as[vq + 1u];
+            acc[0] *= a0;
+            acc[1] *= a0;
+            acc[2] *= a1;
+            acc[3] *= a1;
+            for (uint j = 0u; j < KB; j++) {
+                uvec4 w = kv[j * KS + vd];
+                vec2 pp = ss[j * (QB / 2u) + vq / 2u];
+                vec4 v0 = vec4(unpackHalf2x16(w.x), unpackHalf2x16(w.y));
+                vec4 v1 = vec4(unpackHalf2x16(w.z), unpackHalf2x16(w.w));
+                acc[0] += pp.x * v0;
+                acc[1] += pp.x * v1;
+                acc[2] += pp.y * v0;
+                acc[3] += pp.y * v1;
+            }
+        }
+        barrier();
+    }
+    if (vd < per) {
+        for (uint k = 0u; k < 2u; k++) {
+            uint i = vq + k;
+            if (i < nq) {
+                float l = ls[i];
+                uint64_t yrow = p.y + 4ul * uint64_t(((q0 + i) * n_head + h) * p.hd + 8u * vd);
+                OutVec4s(yrow).v[0] = acc[2u * k] / l;
+                OutVec4s(yrow).v[1] = acc[2u * k + 1u] / l;
+            }
+        }
+    }
+}

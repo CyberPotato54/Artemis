@@ -1,0 +1,38 @@
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int16 : require
+#extension GL_EXT_shader_16bit_storage : require
+#extension GL_KHR_shader_subgroup_clustered : require
+
+// y = W.x for Q8_0 rows of length k. ggml block_q8_0, 34 bytes: f16 d, 32 int8. Blocks are only 2-byte aligned,
+// so the shader reads halfwords. 32 lanes per row and 8 rows per workgroup; lane t handles blocks t, t+32, ...
+layout(local_size_x = 32, local_size_y = 8) in;
+layout(buffer_reference, std430, buffer_reference_align = 2) readonly buffer Halves { uint16_t v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer Vec { float v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) writeonly buffer Out { float v[]; };
+layout(push_constant) uniform Push { uint64_t w; uint64_t x; uint64_t y; uint rows; uint k; } p;
+
+void main() {
+    uint row = gl_WorkGroupID.x * 8u + gl_LocalInvocationID.y;
+    uint lane = gl_LocalInvocationID.x;
+    uint blocks = p.k / 32u;
+    Halves w = Halves(p.w + uint64_t(row) * uint64_t(blocks * 34u));
+    Vec x = Vec(p.x);
+    float acc = 0.0;
+    for (uint b = lane; b < blocks; b += 32u) {
+        uint base = b * 17u;
+        float d = unpackHalf2x16(uint(w.v[base])).x;
+        float s = 0.0;
+        for (uint q = 0u; q < 16u; q++) {
+            uint pair = uint(w.v[base + 1u + q]);
+            s += float(int(pair << 24) >> 24) * x.v[b * 32u + 2u * q]
+               + float(int(pair << 16) >> 24) * x.v[b * 32u + 2u * q + 1u];
+        }
+        acc += d * s;
+    }
+    acc = subgroupClusteredAdd(acc, 32u);
+    if (lane == 0u && row < p.rows) {
+        Out(p.y).v[row] = acc;
+    }
+}

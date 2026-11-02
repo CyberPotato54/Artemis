@@ -1,0 +1,58 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// The distinct routed experts of a layer's tokens, in one workgroup. ids is [tokens][k] f32, as
+// router_topk writes it. list ← [count: u32], then per unique expert u in order of first appearance (token-major, then
+// choice): [expert: u32, mask: u32], bit i of the mask set when token i chose the expert. At most 256 entries
+// (tokens · k <= 256, and tokens <= 16, so a mask is 16 bits). An expert a token chose twice sets its bit once.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t ids;
+    uint64_t list;
+    uint tokens;
+    uint k;
+} p;
+
+shared uint expert_[256];
+shared uint first_[256];
+
+void main() {
+    uint idx = gl_LocalInvocationID.x;
+    uint n = p.tokens * p.k;
+    bool valid = idx < n;
+    uint e = valid ? uint(F32s(p.ids).v[idx]) : 0u;
+    expert_[idx] = e;
+    barrier();
+    // first_[idx]: no earlier entry names this expert. mask: every token with an entry that does.
+    uint f = 0u, mask = 0u;
+    if (valid) {
+        f = 1u;
+        for (uint j = 0u; j < n; j++) {
+            if (expert_[j] == e) {
+                mask |= 1u << (j / p.k);
+                if (j < idx) {
+                    f = 0u;
+                }
+            }
+        }
+    }
+    first_[idx] = f;
+    barrier();
+    // Unique entry u is the (u + 1)-th first_ in entry order.
+    uint rank = 0u, total = 0u;
+    for (uint j = 0u; j < n; j++) {
+        if (j == idx) {
+            rank = total;
+        }
+        total += first_[j];
+    }
+    U32s l = U32s(p.list);
+    if (valid && f == 1u) {
+        l.v[1u + 2u * rank] = e;
+        l.v[2u + 2u * rank] = mask;
+    }
+    if (idx == 0u) {
+        l.v[0] = total;
+    }
+}

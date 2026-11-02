@@ -1,0 +1,32 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#define RED_N 256u
+#include "reduce.glsl"
+
+// y = x / sqrt(mean(x²) + eps) ⊙ w over each of a batch of vectors of n values, one workgroup per vector. Thread t sums
+// the squares of x[t], x[t + 256], ... in order; the 256 partial sums meet in reduce.glsl's tree.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t x;
+    uint64_t w;
+    uint64_t y;
+    uint n;
+    float eps;
+} p;
+
+void main() {
+    uint t = gl_LocalInvocationID.x;
+    uint64_t at = 4ul * uint64_t(gl_WorkGroupID.x) * uint64_t(p.n);
+    F32s x = F32s(p.x + at);
+    F32s y = F32s(p.y + at);
+    float ss = 0.0;
+    for (uint i = t; i < p.n; i += 256u) {
+        ss += x.v[i] * x.v[i];
+    }
+    float total = red_sum(0u, t, ss);
+    float scale = 1.0 / sqrt(total / float(p.n) + p.eps);
+    for (uint i = t; i < p.n; i += 256u) {
+        y.v[i] = (x.v[i] * scale) * F32s(p.w).v[i];
+    }
+}

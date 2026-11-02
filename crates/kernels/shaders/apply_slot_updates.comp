@@ -1,0 +1,30 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// The step's slot-table changes, applied before any expert kernel reads the table: update i is
+// { u32 index; u32 where; u64 addr }, and entry `index` becomes { addr, where, 0 }. One thread per update. The engine
+// stages each index at most once per step, so no two threads write the same entry. An index at or past n_entries is
+// skipped.
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Updates { uvec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer Table { uvec4 v[]; };
+
+layout(local_size_x = 64) in;
+layout(push_constant) uniform Push {
+    uint64_t table;
+    uint64_t updates;
+    uint count;
+    uint n_entries;
+} p;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= p.count) {
+        return;
+    }
+    uvec4 u = Updates(p.updates).v[i];
+    if (u.x >= p.n_entries) {
+        return;
+    }
+    Table(p.table).v[u.x] = uvec4(u.z, u.w, u.y, 0u);
+}

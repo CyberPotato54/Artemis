@@ -1,0 +1,21 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#include "quant.glsl"
+
+// One embedding row, dequantized from pinned host memory: y[i] = dq(row, i).
+// Elementwise; its twin is qwen36::quant::dequant_row.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t row;
+    uint64_t y;
+    uint n;
+    uint wtype;
+} p;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i < p.n) {
+        F32s(p.y).v[i] = dq(p.wtype, p.row, i);
+    }
+}

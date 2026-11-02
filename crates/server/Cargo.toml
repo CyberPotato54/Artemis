@@ -1,0 +1,30 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "The OpenAI- and Anthropic-compatible HTTP server for the Artemis engine"
+
+[dependencies]
+qwen36 = { path = "../qwen36" }
+serde_json = { workspace = true, features = ["preserve_order"] }
+minijinja = { version = "3.0.1", default-features = false, features = ["builtins", "macros", "json", "serde", "preserve_order", "adjacent_loop_items", "std_collections", "multi_template", "fuel"] }
+minijinja-contrib = { version = "3.0.1", features = ["pycompat"] }
+serde = { workspace = true }
+serde_path_to_error = "0.1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "ansi"] }
+tokio = { version = "1.53", default-features = false, features = ["rt-multi-thread", "macros", "sync", "signal", "time", "net"] }
+toml = { version = "1.1", default-features = false, features = ["std", "serde", "parse"] }
+subtle = "2.6"
+clap = { workspace = true }
+futures-util = { version = "0.3", default-features = false }
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio", "tracing"] }
+hyper = { version = "1.12", default-features = false, features = ["server", "http1"] }
+hyper-util = { version = "0.1.21", default-features = false, features = ["tokio", "server", "service", "http1", "server-graceful"] }
+
+[dev-dependencies]
+hyper = { version = "1.12", default-features = false, features = ["client"] }
+http-body-util = "0.1"

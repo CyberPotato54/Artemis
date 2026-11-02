@@ -1,0 +1,14 @@
+# The path of the model file. Single quotes keep the backslashes of a Windows path as they are.
+# A relative path is read from the folder this file is in. A path that holds a single quote goes in a double-quoted
+# string with doubled backslashes ("C:\\models\\it's.gguf").
+model = 'C:\models\Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
+# The port the server listens on. It binds 127.0.0.1 unless you set an API key and a different host.
+port = 8080
+# To require an API key, put it on the first line of a text file, remove the # and name the file here.
+# api_key_file = 'C:\artemis\key.txt'
+# By default the text of a control token in client text (a file an agent read, a tool result) is read as that token. To
+# keep it plain text, which is safer for an agent that reads untrusted files, remove the # on the next line.
+# special_tokens_in_content = false
+# On the first start with no tuned file, Artemis measures this PC for a few minutes and keeps what it chose. To skip
+# that measurement, remove the # on the next line.
+# first_run_setup = false

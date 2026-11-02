@@ -1,0 +1,85 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// The gated delta rule over a batch of tokens: the recurrent form, scanned token by token, one workgroup
+// per value head h, which uses key group h % n_group. Each token does what gdn_step does: thread j owns row j of the
+// head's state M (M[j][i] = S[i][j]), held in registers across the batch,
+//   M[j][·] *= exp(g_h);  u = Σ_i M[j][i]·k_i;  δ = (v_j − u)·β_h;  M[j][i] += k_i·δ;  o_j = (Σ_i M[j][i]·q_i)·scale,
+// both sums over i in order. q, k and v are rows `stride` values apart, one per token (the conv output); g and β hold
+// [tokens][heads], o [tokens][heads][dv]. q, k and v are loaded 16 tokens at a time into shared memory (2 × 16 × 128 floats = 16,384 bytes,
+// the least Vulkan guarantees), so the scan waits on memory for them once per 16 tokens; g and β are read per token
+// (every invocation reads the same value). The loops always run over 128 keys, with q, k and the state past dk held at zero, which adds exact
+// zeros: fixed bounds keep the state in registers. The state is read at the start and written at the end, unless
+// store is 0: then it is read and never written (the verify pass keeps state set A), and o is the same.
+// dk and dv are at most 128.
+layout(local_size_x = 128) in;
+layout(push_constant) uniform Push {
+    uint64_t q;
+    uint64_t k;
+    uint64_t v;
+    uint64_t g;
+    uint64_t beta;
+    uint64_t state;
+    uint64_t o;
+    uint dk;
+    uint dv;
+    uint n_group;
+    float scale;
+    uint tokens;
+    uint stride;
+    uint store;
+} p;
+
+#define TB 16u
+shared float qs[TB * 128u];
+shared float ks[TB * 128u];
+
+void main() {
+    uint h = gl_WorkGroupID.x, j = gl_LocalInvocationID.x, heads = gl_NumWorkGroups.x;
+    uint grp = h % p.n_group;
+    bool row = j < p.dv;
+    F32s st = F32s(p.state + uint64_t(4u * (h * p.dv + j)) * uint64_t(p.dk));
+    float m[128];
+    for (uint i = 0u; i < 128u; i++) {
+        m[i] = row && i < p.dk ? st.v[i] : 0.0;
+    }
+    for (uint t0 = 0u; t0 < p.tokens; t0 += TB) {
+        uint nt = min(TB, p.tokens - t0);
+        float vs[TB];
+        for (uint b = 0u; b < nt; b++) {
+            uint at = (t0 + b) * p.stride;
+            qs[b * 128u + j] = j < p.dk ? F32s(p.q).v[at + grp * p.dk + j] : 0.0;
+            ks[b * 128u + j] = j < p.dk ? F32s(p.k).v[at + grp * p.dk + j] : 0.0;
+            vs[b] = row ? F32s(p.v).v[at + h * p.dv + j] : 0.0;
+        }
+        barrier();
+        if (row) {
+            for (uint b = 0u; b < nt; b++) {
+                float decay = exp(F32s(p.g).v[(t0 + b) * heads + h]);
+                float u = 0.0;
+                for (uint i = 0u; i < 128u; i++) {
+                    float e = m[i] * decay;
+                    m[i] = e;
+                    u += e * ks[b * 128u + i];
+                }
+                float delta = (vs[b] - u) * F32s(p.beta).v[(t0 + b) * heads + h];
+                float acc = 0.0;
+                for (uint i = 0u; i < 128u; i++) {
+                    float e = m[i] + ks[b * 128u + i] * delta;
+                    m[i] = e;
+                    acc += e * qs[b * 128u + i];
+                }
+                F32s(p.o).v[((t0 + b) * heads + h) * p.dv + j] = acc * p.scale;
+            }
+        }
+        barrier();
+    }
+    if (row && p.store != 0u) {
+        for (uint i = 0u; i < 128u; i++) {
+            if (i < p.dk) {
+                st.v[i] = m[i];
+            }
+        }
+    }
+}

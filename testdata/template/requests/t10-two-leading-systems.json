@@ -1,0 +1,9 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "max_tokens": 16,
+  "messages": [
+    {"role": "system", "content": "You are a careful assistant."},
+    {"role": "system", "content": "Answer in one short sentence."},
+    {"role": "user", "content": "Why is the sky blue?"}
+  ]
+}

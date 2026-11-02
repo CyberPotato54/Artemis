@@ -1,0 +1,88 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// Groups a batch's routed experts by expert, a deterministic counting sort in one workgroup: invocation e
+// counts expert e's entries among the batch's ids ([tokens][k], as f32), the counts' prefix sums place each expert's
+// run, and invocation e then writes its entries' indices t·k + j in token order. `list` holds the runs, experts in
+// order; `tiles` holds each run cut into tiles of up to 64 entries, as uvec4 (expert, first, count, 0), runs in
+// expert order, and empty tiles (count 0) after the last up to max_tiles. The ids are read through shared memory,
+// 4,096 at a time. An id that names no expert is dropped. At most 256 experts.
+layout(buffer_reference, std430, buffer_reference_align = 16) writeonly buffer Tiles { uvec4 v[]; };
+
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t ids;
+    uint64_t list;
+    uint64_t tiles;
+    uint n;
+    uint entries;
+    uint max_tiles;
+} p;
+
+#define TILE 64u
+// dispatch.rs's MOE_GROUP_SHARED_BYTES (18,432) is these three arrays' size, and Kernels::new checks it against the
+// device: change them together.
+#define CHUNK 4096u
+shared uint sid[CHUNK];
+shared uint start[256];
+shared uint first_tile[256];
+
+void main() {
+    uint e = gl_LocalInvocationID.x;
+    uint count = 0u;
+    for (uint c0 = 0u; c0 < p.entries; c0 += CHUNK) {
+        uint nc = min(CHUNK, p.entries - c0);
+        for (uint i = e; i < nc; i += 256u) {
+            float v = F32s(p.ids).v[c0 + i];
+            sid[i] = v >= 0.0 && v < float(p.n) ? uint(v) : 0xFFFFFFFFu;
+        }
+        barrier();
+        for (uint i = 0u; i < nc; i++) {
+            if (sid[i] == e) {
+                count++;
+            }
+        }
+        barrier();
+    }
+    start[e] = count;
+    first_tile[e] = (count + TILE - 1u) / TILE;
+    barrier();
+    if (e == 0u) {
+        uint s = 0u, f = 0u;
+        for (uint x = 0u; x < 256u; x++) {
+            uint c = start[x], ft = first_tile[x];
+            start[x] = s;
+            first_tile[x] = f;
+            s += c;
+            f += ft;
+        }
+        // The tiles in use, for the invocations that clear the rest.
+        sid[0] = f;
+    }
+    barrier();
+    uint used = sid[0];
+    barrier();
+    uint at = start[e];
+    for (uint q = 0u; q * TILE < count; q++) {
+        Tiles(p.tiles).v[first_tile[e] + q] = uvec4(e, at + q * TILE, min(TILE, count - q * TILE), 0u);
+    }
+    for (uint i = used + e; i < p.max_tiles; i += 256u) {
+        Tiles(p.tiles).v[i] = uvec4(0u);
+    }
+    for (uint c0 = 0u; c0 < p.entries; c0 += CHUNK) {
+        uint nc = min(CHUNK, p.entries - c0);
+        for (uint i = e; i < nc; i += 256u) {
+            float v = F32s(p.ids).v[c0 + i];
+            sid[i] = v >= 0.0 && v < float(p.n) ? uint(v) : 0xFFFFFFFFu;
+        }
+        barrier();
+        for (uint i = 0u; i < nc; i++) {
+            if (sid[i] == e) {
+                U32s(p.list).v[at] = c0 + i;
+                at++;
+            }
+        }
+        barrier();
+    }
+}

@@ -1,0 +1,182 @@
+{
+ "01-code": {
+  "expected": {
+   "prompt": "cab408804a19783e"
+  },
+  "floor": {
+   "expected": "35901a60cbb56c6a",
+   "prompt": "cab408804a19783e"
+  }
+ },
+ "02-prose": {
+  "expected": {
+   "prompt": "389542c340a3bd23"
+  },
+  "floor": {
+   "expected": "d0ee53f7e4677b95",
+   "prompt": "389542c340a3bd23"
+  }
+ },
+ "03-chat": {
+  "expected": {
+   "prompt": "5bbdb9f9f46744d8"
+  },
+  "floor": {
+   "expected": "57f858638ce0e85f",
+   "prompt": "5bbdb9f9f46744d8"
+  }
+ },
+ "04-multilingual": {
+  "expected": {
+   "prompt": "dd426d238daead51"
+  },
+  "floor": {
+   "expected": "0160075460bfd1e7",
+   "prompt": "dd426d238daead51"
+  }
+ },
+ "05-code-write-lru": {
+  "expected": {
+   "prompt": "ada7f25ca3e42394"
+  },
+  "floor": {
+   "expected": "d3ba81e8c009cf9a",
+   "prompt": "ada7f25ca3e42394"
+  }
+ },
+ "06-code-write-sql": {
+  "expected": {
+   "prompt": "4d49efa98695f555"
+  },
+  "floor": {
+   "expected": "8944797aa7d54fa9",
+   "prompt": "4d49efa98695f555"
+  }
+ },
+ "07-code-write-ts": {
+  "expected": {
+   "prompt": "fab776493cf27162"
+  },
+  "floor": {
+   "expected": "970ad9b8ef391e93",
+   "prompt": "fab776493cf27162"
+  }
+ },
+ "08-code-edit-bugfix": {
+  "expected": {
+   "prompt": "cd0ab7e9dc486c63"
+  },
+  "floor": {
+   "expected": "912e698d96e83be5",
+   "prompt": "cd0ab7e9dc486c63"
+  }
+ },
+ "09-code-edit-refactor": {
+  "expected": {
+   "prompt": "9ee2cc5eeeaca799"
+  },
+  "floor": {
+   "expected": "15f21a8578b69c63",
+   "prompt": "9ee2cc5eeeaca799"
+  }
+ },
+ "10-code-explain-regex": {
+  "expected": {
+   "prompt": "a44a21d1d1a0b9c7"
+  },
+  "floor": {
+   "expected": "60eeddd7be93f06b",
+   "prompt": "a44a21d1d1a0b9c7"
+  }
+ },
+ "11-code-explain-rust": {
+  "expected": {
+   "prompt": "2c72cb3426d5a80e"
+  },
+  "floor": {
+   "expected": "836c8fdf1213276c",
+   "prompt": "2c72cb3426d5a80e"
+  }
+ },
+ "12-prose-story": {
+  "expected": {
+   "prompt": "4f1129575bff76ff"
+  },
+  "floor": {
+   "expected": "7199c4c41acbfdd4",
+   "prompt": "4f1129575bff76ff"
+  }
+ },
+ "13-prose-email": {
+  "expected": {
+   "prompt": "d8a77b1a16ce6ff1"
+  },
+  "floor": {
+   "expected": "a7c1fc1df4bb87da",
+   "prompt": "d8a77b1a16ce6ff1"
+  }
+ },
+ "14-prose-summary": {
+  "expected": {
+   "prompt": "0595b16116876512"
+  },
+  "floor": {
+   "expected": "e8b3d8e724d17efd",
+   "prompt": "0595b16116876512"
+  }
+ },
+ "15-prose-explain": {
+  "expected": {
+   "prompt": "667019dbe058cd08"
+  },
+  "floor": {
+   "expected": "81da0bee3a7f5ee9",
+   "prompt": "667019dbe058cd08"
+  }
+ },
+ "16-tool-weather": {
+  "expected": {
+   "prompt": "cbe388642f1e1933"
+  },
+  "floor": {
+   "expected": "892fe04538c2bd8b",
+   "prompt": "cbe388642f1e1933"
+  }
+ },
+ "17-tool-result": {
+  "expected": {
+   "prompt": "d21656d31910dd81"
+  },
+  "floor": {
+   "expected": "3c891e76f4600fbe",
+   "prompt": "d21656d31910dd81"
+  }
+ },
+ "18-tool-multi": {
+  "expected": {
+   "prompt": "0c99835589f2f63e"
+  },
+  "floor": {
+   "expected": "578653898f85f20b",
+   "prompt": "0c99835589f2f63e"
+  }
+ },
+ "19-multilingual-ja": {
+  "expected": {
+   "prompt": "24d27c327d5a926c"
+  },
+  "floor": {
+   "expected": "8519b9db51437ccc",
+   "prompt": "24d27c327d5a926c"
+  }
+ },
+ "20-long-option-rs": {
+  "expected": {
+   "prompt": "78b561d5e8015ed2"
+  },
+  "floor": {
+   "expected": "70623f8f26911ce7",
+   "prompt": "78b561d5e8015ed2"
+  }
+ }
+}

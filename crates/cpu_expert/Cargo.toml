@@ -1,0 +1,20 @@
+[package]
+name = "cpu_expert"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "The CPU miss path's expert worker: a bit-exact AVX-512 expert, its scalar twin, and its pool"
+
+[dependencies]
+half.workspace = true
+kernels = { path = "../kernels" }
+
+# The pool's core pinning and priority, on Windows only.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_Foundation"] }
+
+# The real-expert test reads the GGUF; nothing in the production build does.
+[dev-dependencies]
+gguf = { path = "../gguf" }

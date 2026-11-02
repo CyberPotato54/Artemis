@@ -1,0 +1,25 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// Writes a batch of positions' keys and values ([tokens][width]) into the f16 caches ([ctx][width]) at positions
+// pos, pos + 1, … (workgroup y is the token), rounding to nearest even.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t k;
+    uint64_t v;
+    uint64_t kc;
+    uint64_t vc;
+    uint pos;
+    uint width;
+} p;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x, tok = gl_WorkGroupID.y;
+    if (i < p.width) {
+        uint at = (p.pos + tok) * p.width + i;
+        uint from = tok * p.width + i;
+        U16s(p.kc).v[at] = uint16_t(f16_bits(F32s(p.k).v[from]));
+        U16s(p.vc).v[at] = uint16_t(f16_bits(F32s(p.v).v[from]));
+    }
+}

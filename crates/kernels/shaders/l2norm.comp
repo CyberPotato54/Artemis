@@ -1,0 +1,30 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#define RED_N 64u
+#include "reduce.glsl"
+
+// x / sqrt(Σx² + eps) in place, one workgroup per vector of n values (q's and k's key groups):
+// vector x of token y starts at value y·stride + x·n. Thread t sums x[t]², x[t + 64]², ... in order before the
+// tree.
+layout(local_size_x = 64) in;
+layout(push_constant) uniform Push {
+    uint64_t x;
+    uint n;
+    float eps;
+    uint stride;
+} p;
+
+void main() {
+    uint t = gl_LocalInvocationID.x;
+    F32s x = F32s(p.x + 4ul * uint64_t(gl_WorkGroupID.y * p.stride + gl_WorkGroupID.x * p.n));
+    float ss = 0.0;
+    for (uint i = t; i < p.n; i += 64u) {
+        ss += x.v[i] * x.v[i];
+    }
+    float total = red_sum(0u, t, ss);
+    float scale = 1.0 / sqrt(total + p.eps);
+    for (uint i = t; i < p.n; i += 64u) {
+        x.v[i] = x.v[i] * scale;
+    }
+}

@@ -1,0 +1,35 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// The causal conv for one token, per channel c: y_c = silu(Σ_τ window[τ]·w[c][τ]) over the
+// window [state_c (oldest first), x_c]; then the state drops its oldest input and keeps x_c (raw, not post-SiLU).
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t x;
+    uint64_t w;
+    uint64_t state;
+    uint64_t y;
+    uint n;
+    uint kw;
+} p;
+
+void main() {
+    uint c = gl_GlobalInvocationID.x;
+    if (c >= p.n) {
+        return;
+    }
+    F32s st = F32s(p.state + uint64_t(4u * c * (p.kw - 1u)));
+    F32s w = F32s(p.w + uint64_t(4u * c * p.kw));
+    float xc = F32s(p.x).v[c];
+    float acc = 0.0;
+    for (uint t = 0u; t + 1u < p.kw; t++) {
+        acc += st.v[t] * w.v[t];
+    }
+    acc += xc * w.v[p.kw - 1u];
+    for (uint t = 0u; t + 2u < p.kw; t++) {
+        st.v[t] = st.v[t + 1u];
+    }
+    st.v[p.kw - 2u] = xc;
+    F32s(p.y).v[c] = silu(acc);
+}

@@ -1,0 +1,507 @@
+{
+  "client": "opencode",
+  "version": "2.0.30",
+  "seq": 5,
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "query": "",
+  "headers": {
+    "Authorization": "<masked>",
+    "Content-Type": "application/json",
+    "User-Agent": "opencode/latest/2.0.30/cli",
+    "b3": "48b570447dba4e291a09f91db8f833dc-376d07fcfb0e2879-1-c592eaa805c08a3a",
+    "traceparent": "00-48b570447dba4e291a09f91db8f833dc-376d07fcfb0e2879-01",
+    "x-opencode-client": "cli",
+    "x-opencode-project": "561a3c14967659570e035d0deaac0e6f8beb398f",
+    "x-opencode-session": "ses_ea95bb644ffeIfmzNn6upr2V1k",
+    "x-opencode-session-id": "ses_ea95bb644ffeIfmzNn6upr2V1k",
+    "x-session-affinity": "ses_ea95bb644ffeIfmzNn6upr2V1k",
+    "x-session-id": "ses_ea95bb644ffeIfmzNn6upr2V1k",
+    "Connection": "keep-alive",
+    "Accept": "*/*",
+    "Host": "127.0.0.1:8090",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
+    "Content-Length": "23470"
+  },
+  "body": {
+    "model": "qwen3.6-35b-a3b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "xxx xxx xx xx xxxxx xxxxxxx xx xxxxxxxxx x xxxxxx xxxxx xxxxxxxx xxxx xxx xxxx xxxxxxxxxx xxxxx xxxxx xxxxx xxx xxxxx xxx xxxx xxxxxxxxxx\n\nx xxxxxxx\nx xxxxxxxxx xxx xxxxxxxx xx xxxxxxxxxxxxxxx xxxxxxxxx\nx xxxxxxxxxxxxxxxxxxx xxxxxx xxx xxxxxxx xxxxxxxxxxxxx xxx xxxxxxxxxxxxx xxxxxxxx xxxx xxx xxxxxx xxxxx\nx xxxxxx xxxxxxxxxxxxx xxxxxxxxxxx xxxx xxxxxx\nx xxxxxx xxxxxxxxx xxxxx xxxx xxxxx xxxxxxxxx xxxx xxxx xx xxx xxxxx xxxx x xxxx xxxxxx xx xxxx xxx xxxxx\nx xx xxx xxxxx xxxxx xxxxxxxx xxxx xxxxxxxxxx xxxx xxxxx xxxxxxxx xx xxxxxxx xxxxxxx xxx xxxxxx xxxxxxx xxxxx xx x xxx xxxx xxxxx xxx xxxxxx xxxx xx xxx xxxxxxxxxxxx xxxxxx\nx xxx xxx xxxxx xxxx xx xxxxxx xxxxx xx xxxxxxxxxx xxxxxxx xxxxx xxxxxxxx xxxxxx xxxxx xxx xxxx xxxx xxx xxxxxxxx xxxxxxxx\nx xxx xxx xxxx xxxx xxx xxxxxxxx xxxxxxx xx xxxxxxxx xxxx xxxxxx xx xxxxxxxx xxx xxxxx xxxx xx xxxxxxxxxxx xxxx xxxxxxxxxxxx xxx xxx xxxxxx xxxx xxxxxxx xx xxxxxxxx xxxxxxxxxxx xxxx xxxxx xxxxxxx xxxxx xx xx xxxxxx xxxxxxxx xxxxxx xxxxxxx xxxx xxxxxxxxxxx xxxxxxx xx xxxx xx xxxxxx xx xxx xxxxxxxxxxxx xx xxxx xx xxxxxxx xxxxx xxxxxxxxxxx\n\nx xxxxxxxxxxxxx\nx xxx xxxxx xxxx xxxxx xxxx xxxxxxxxx xx xxxxxx\nx xxxx xxxxxxxxx xxxxx xxx xxxxxxxx xxx xxxxx xxxxxxxxxxx xxxxxxxxx xxxxxxx\n\nx xxxxxxx xx xxxxxxxxx\nx xxxx xxxxxxx xxxxxxxxxx xxxx xxx xxxxxxxxxx xxxxxxx xxxxxx xxx xxxxxxxx xx xxx xxxxxxxxxxx xxxxx\nx xxxxx xxxxxxxxxx xxxxx xx xxxxxxx xx xxxxxxxxx xxxx xxxx xxx xxxxxxxxxxx xxxxxx xxxxxxxx xx xxxxxxxxxxx xxxxx\n\nx xxxx xxxxx\nx xxxxx xxxxxxxxxxxxxxx\nx xxxxxxxx xxx xxxxxxx\nx xxxxx xxx xxxxxxxxxxxxxxx\nx xxxx xxxx\n\nxxx xxx xxxxxxxxx xxxx xx xxxx xxx xxxxx xxxxxx xxxxxx xxxx xxxxxx xx xxxxxx xxxxxxxxx xxxx xxxx xxxx xxxxxx xxxx xxx xxxx xx xxxxxxxxxx\n\nxxx xxxxxxx xx xxxxxxxxx xx xxx xxxxx xxxx xxxxxx\n\nxx xxxxxxxxx xxxxx\n\nx xxxxxxxx xx xxxxxx xx xxxxx xxx xxxxxxxx xxxxxxxx xxxxxxx xxxx xx xxxxxxx xxxx xxxxxxxx xxx xxxxxxxxxx xxxxxxxxx xxx xxxxxxxxx xxxxxxx xxx xxxxxxx xxx xxxxxxxxxx\n  x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n  xxx xxx xxxxxx xxxx xx xxxxxxxxxxx xxxx xx xxxx xxxxx xxxxxxx xx\n  xxxxxxxx xxxxxxx\nxxx xxxxxxxxx\n  xxxxxxxxxx xxxxxxx\n      xxxxxxx xxxxxxx\n      xxxxx xxxxxxx\n      xxxx xxxxxxx\n      xxxxxxxxxxxxx xxxxxxx\n      xxxxxxxxxx xxxxxxx\n    xxx\n  xxxxxxxxxx xxxxxxx\n      xxxxxxx xxxxxxx\n      xxxxx xxxxxxx\n      xxxxxxxxxxxx xxxxxxx\n      xxxxxxxxxxxxx xxxxxxx\n      xxxxxxxxxx xxxxxxx\n    xxx\nxx xx xxxx xxxxxxxxxx xxxxxxxx xxx xxxxx xxxx xxxxxxx xx xxx xxxxxxxx xxx xxxx xxxx xxx xxxx xxxxxx xx xxxxxxxxx xxxx xx xxxxx\n  x xxxxxxxxxxxxxxxxxxxxxxx\n  xxx xxxx xx xxxxxx xxx xx xxxxx xxxxx xxx xxxx xx\n  xxxxxxx xxxxxxx\n  xxx xxxxxxxx xx xx xxxx xx xxxxxx xxx xxx xxxx xxx xxxxxxxx xxxxxx xx\n  xxxxxxxxxx xxxxxxx\n  xxx xxxxxxx xxxxx xxxxxxxx xx xxxx xxxxx xxxxxxx xx xxxxxxx xxxx xxx xxxxxx xxxxxxx xx xxxxxxx xx\n  xxxxx xxxxxxxx\n  xxx xxxxxxx xxxxxx xx xxxxxx xx xxxxxxx xxxxxxxx xx xxx xxxxxxxx xxxxxxxx x xxxxxxxx xxx xx\n  xxxxxxx xxxxxxx\n  xxx xxxxxx xx xxxxxx xx xxxxx xxx xxxxxx xxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx x xx\n  xxxxxxxx xxxxxxx\nxxx xxxxxxxxx\n  xxx xxxxxxxx xxxxxx xxxxxxx xx xxxxxxxxx xxxx xxx xxxxxxxx xxxxx xxxxxx xx\n  xxxxxxxxxx xxxxxxx\n      xxx xxxxxxx\n      xxxxx xxxxxxx\n      xxx xxxxxx xxxxxx xx\n      xxxxxxx xxxxxxx\n          xxx xxxxxxxxxxxxxxxxxx xx\n          xxx xxxxxxx\n          xxxxx xxxxxxx\n          xxx xxxxxxx xxxx xx x xxxx xxxxxxxxx xx xxxxxxxxxxxxx xx x xxxx xxxxxxxx xx\n          xxxxxxxxx xxxxxxx\n          xxxxxxxxx xxxxxxxxxxxxxx\n          xxx xxxxxxx xx xxx xxx xxxxxxx xxxxxxx xx\n          xxxxx xxxxxxx\n              xxxxxx x\n                xxxxx xxxxxxxxxx\n                xxx xxxxxxxx xx\n                xxxxx xxxxxxx\n              xx\n              xxxxxx xxxxxxx\n              xxxxxxx xxxxxxx\n              xxxxxx x\n                xxxxx xxxxxxx\n                xxxxxx xxxxxxx\n              xx\n            xxx\n          xxxxxxx xxxxxxx x xxxxxx x xxxxxxxxxxxx x xxxxxxxxx\n        xxx\n    xxx\n  xxx xxxxxx xx xxxxxxxx xxxxxx xxxxxx xxx xxxxxx xxxxxxxx xx\n  xxxxxx xxxxxxx\n  xxx xxxxxx xx xxx xxxx xxxxx xx xxxx xx xxx xxxx xxxxx xx\n  xxxxx xxxxxx x xxxxx\nxx xx xxxxxx xxx xxxxxx xxxxxxxxx xx xxxx xxx xxxx xx xxxx x xxxxx xxxx xxx xxxx xxxxxxxx xxxx xx xxxxx xxxxxxxxx xxxxxx xxxxx\n  x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n  xxx xxx xxxxxx xxxxx xx xxx xxxxxxxxxx xxxxxxxxx xx\n  xxxxxxx xxxxxxx\n  xxx xxxxx xxxxxxxx xxx xxxx xxxxxxxxxx xx xxxxxxxx xxxxxxxxxxxx xx xxx xxxxx xx\n  xxxx xxxxxxx\nxxx xxxxxxxxx\n  xxxxxxx xxxxxxx\n  xxxx xxxxxxx\n  xxxxxxxxx xxxxxxx\n        xxxxx xxxxxxx\n        xxxx xxxxxxx\n        xxxxx xxxxxxx\n        xxxxxxxxxx xxxxxxx\n      x x x\n        xxxxx xxxxxxx\n        xxxx xxxxxxx\n        xxxxx xxxxxxx\n        xxxxxxxxxx xxxxxxx\n      xxx\nxx xx xxxx xxx xxx xxxxxxxx xx xxxxxx xxx xxxx xxx xxx xxxxx xxxxxx xxxxxx xxxxxx xxx xxxx xxxxxxxx xxxxxx xxxx xxxxxxx xx xxx\n  x xxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n  xxx xxxx xx xxxx xxx xxxxxxx xxxxxxxx xxxxxxxx xxxx xx\n  xxxxxxxxxxx xxxxxxx\n  xxx xxxxxxxxxxx xxxxxxxxxx xxxxxxxx xx xxx xxxxxx xxxxxxxxx xxxxxxxxx xx xxxxxxxxx xxxxxxxx xx xxxxxxxxxx x xx\n  xxxxxxxxxx xxxxxxx\nxxx xxxxxxxxx\n  xxx xxxxxxxx xxxx xx\n  xxxxxxxxxx xxxxxxx\n  xxxxxxxxxx xxxxxxx\nxx xx xxxx x xxxxxxx xx xxxxxxx xxxxxxxxxx xx xxxx xxxxxxxxx xx xxxx xxx xxxxxxx xxxxxxxx xxx xxxxxxx xxxxxxx xxxxx xx xxx xxx\n  x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n  xxx xxxx xx xxxxxx xxx xxxxxxx xxxxxxxx xxxxxxxx xxxx xx\n  xxxxxxxxxxx xxxxxxx\n  xxx xxx xxxxxxx xxxxxx xxxxxxxxxx x xx\n  xxxxxx xxxxxxx\nxxx xxxxxxxxx\n  xxx xxxxxxxx xxxx xx\n  xxxxxxxxxx xxxxxxx\n  xxxxxx xxxxxxx\nxx xx xxxxxx x xxxxxxxx xx xxxx xxxxxxxxx xx xxxxxx xxx xxxxxxx xxxxxxxx xxx x xxxxxx xxxxxxxx xxxxx xxxx xxxxxxxxxx xxx xxxxx\n  x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n  xxxxx xxxxxxx\nxxx xxxxxxxxx\n  xxxxxxxxxx xxxxxxx\nxx xx xxxxxx x xxxxx xxxxxxxxx xxxxxxx xxx xxxxxxxxxx\n  x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxxxxx\n  xxxxxxxxxx xxxxxxx\n      xxxxxxxxxx xxxxxxx\n      xxxxxxxxxx xxxxxxx\n    xxx\nxx xx xxxx x xxxxxxxxxxxx xxxxxxxxxx\n  x xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n  xxx xxxxxxxx xxxx xx xxx xxxxxxxx xx xxxxxxx xxxxxxxxxx x xx\n  xxxxxxxxxx xxxxxxx\n  xxx xxxxxxx xxxxxxxx xxx xxxxxxxxx xxxxxx xxxx xxx xxxx xxxx xxx xxxx xxx xxxxxxxxx xxxxxx xxxxxxxx xx\n  xxxxxxx xxxxxxxx\nxxx xxxxxxxxx\n  xxxxxxxxxx xxxxxxx\n  xxxxxxxx xxxxxxxx\nxx xx xxxxxx x xxxxxxxxx xxx xxxxxxxxxx xxxxxxxx xxxxxxx xxxxxxxxxxxxxx xxxxxxxxx xxxxxxxxxx xxx xxxxxxxx xx xxxxxxx\n\nxxxxxx xxxxxxx xxxxxxxxxxx xxxxxxxxxxxx xxx xxxxxxxxx xxx xxxxxxxx xxxxxx\nxxx xxx xxxxx xxxx xx xxxx x xxxxx xxxx x xxxx xxxxxxx xxx xxxxxxxxxxxx\nxxx xxxx xxx xxxx xxxxxx x xxxxx xxxxxxxxx xxxx xxxx xxxxxxxx xxx xxxxxxxxxxxx xxxxxx xx xxx xxxxxxxxxxxx xx x xxxxxxxxxxxxxxx xxxxxx xxx xxxx xxxxx xxx xxxxx xxxx xxxxxxxx x xxxxx xxxx xx xxxxxxx xxxxxxx xxxx xxx xxxx xxx xxxx xx xx xxxxxxx xxxxxx\nxxxxxxxxxxxxxxxxxx\n  xxxxxxx\n    xxxxxxxxxxxxxxxxx\n    xxxxxxxxxxxxxxxxxxxxx\n    xxxxxxxxxxxxxxxx xxxx xxxxx xxx xxx xxxxxxxx xxxxx xxxxxxxx xxxxxxx xxxxxxxxx xxx xxxxxxxx xxxxxx xxxxx xx xxxxxxxxxxx xxx xxxxxxxxx xxxx xx xx xxx xxxxxxxxxxxxxxx xxx xxxxxxxxxx xxxxxxx xx xxxxxxxxxxxxx xxxxx xxx xxxxxxxx xxxx xxxxxxxx xxxxxxx xx xxxx xxx xxxxxxxxxxxx xx xxx xxxxxxxx xxxxxxxxx xxxx xxx xx xxx xxxxxxxx xxxxxxx xxxxxxxxx xxxxxxx xxxxxx xxxxxxxxxxxx xxx xxxxxxxx xxxxxxxxxx xxxxxxx xxxxxxx xxxxxxxxx xxxxxxxxxxx xxx xxxx xxxx xxxxxxx xxxx xxx xxx xxxxxxxxxxxxxxxxxx\n  xxxxxxxx\n  xxxxxxx\n    xxxxxxxxxxxxxxx\n    xxxxxxxxxxxxxxxxxxx\n    xxxxxxxxxxxxxxxx xxxx xxx xxxx xxxxx xx xxxxxx xx xxxxxxxx xxxxx xx xxxx xxxxxxx xxxxxxxx xxxxxxxxxxxx xxx xxxxxxxxxxxxx xxxxxxxxxxxx xxxxxxxx xxx xxxxxxx xxx xxxxx xxxx xxxxxx xxxxxxxxxxxxxxxxxx\n  xxxxxxxx\nxxxxxxxxxxxxxxxxxxx\n\nxxxxxxx xxxxx xxx xxx xx xxxx\n\nxxxx xx xxxx xxxxxx xxxxxxxxxxx xxxxx xxx xxxxxxxxxxx xxx xxx xxxxxxx xxx\nxxxxx\n  xxxxxxx xxxxxxxxxx xxxxxxxxxxxxxxxx\n  xxxxxxxxx xxxx xxxxxxx xxxxxxxxxxxxxxxx\n  xx xxxxxxxxx x xxx xxxxx xxx\n  xxxxxxxxx xxxxx\n  xxxxxx xxxxxxxxxxxxxxxxxxxxxxxxxxx xxxx xxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx xxxx xx xxxxx xx xx xxxxxxxxxxx xxx xxxxxxxx xxx xxxxxxxx xxxxxxx\nxxxxxx\nxxxx xxx xxxxxx x xxxxxxxx xxxxxxx xxx xxxxxxx xxxxxxx xxxxxxxxx xxx xxxxxx xx xxx xx xx xxxx xxxxxxx xxxxxxx xxxxxxxxxx xxxxxxxx xxxxx xxxxxxxxx xx xxxx xxxxxxxxxxxxxxxxxxxxxxxxxxxxx xxx xxxx xxx xxxxxxxx xxx xxxxxxxxx xxxxxxx xxxxxxxxxx"
+      },
+      {
+        "role": "user",
+        "content": "\"Read notes.txt and say how many stages it lists.\""
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_886945c7e00544958ea00550",
+            "type": "function",
+            "function": {
+              "name": "read",
+              "arguments": "{\"path\":\"/scratch/project/notes.txt\"}"
+            }
+          }
+        ],
+        "reasoning_content": "Checking the file."
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_886945c7e00544958ea00550",
+        "content": "Read file /scratch/project/notes.txt, lines 1-1\n1: The build uses three stages: fetch, compile, link."
+      },
+      {
+        "role": "assistant",
+        "content": "The file lists three stages.",
+        "reasoning_content": "Checking the file."
+      },
+      {
+        "role": "user",
+        "content": "\"Name the last stage.\""
+      },
+      {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_68e6bfd610ff44149f6bb462",
+            "type": "function",
+            "function": {
+              "name": "read",
+              "arguments": "{\"path\":\"/scratch/project/notes.txt\"}"
+            }
+          }
+        ],
+        "reasoning_content": "Checking the file."
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "call_68e6bfd610ff44149f6bb462",
+        "content": "Read file /scratch/project/notes.txt, lines 1-1\n1: The build uses three stages: fetch, compile, link."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "edit",
+          "description": "xxxx xxx xxxxxxxx xx x xxxx xx xxxxxxx xxx xxxxxxxxx xxxxx xxxxx xxxx xxxxxxx xxxx xxxx xxxx xxxxxxx xxxxxxxx xxx xxxxx xxxxxxxxxxx xxxxx xx xxxxxxx xxx xxxx xxx xxxxxxxxxxx xxxxxxx xxxx xx xxx xx xxxxx xxxxxxx xxx xxxxxx xx xxxxxxxxx xx xxxxxxxxxx xxxxx xxxx xxxxxx xx xxx xxx xxxxxx xxxxxxxx xxxx xx xx xxxx xxxxxxx xxx xxxxxxx xxx xxxxxxxxxx xx xxxxxx xxxx xxxxxxx xxxxxxxxxxx xxxx xxxxxxxxx xxx xxxxxxxxx xxxxxx xxxx xx xxx xxxx xxxx xxxxxxx xx xxx xxxxx xxxxxx xx xxxxx xx xx xxxxx xxxxxx xxx xxxx xxxxxxx xxxxx xxxxxxxx xxxxxxxxxxx xxxxxx xxxxx xxx xxxxx xxxxxxxxx xxxx xxxxxxxx xxxxxxxxxx xx xxxx xxxxx xxx xxxx xxxxx xx xxxxxxxxx xx xxx xxxxxx xx xxxxxxxx xxxxxxxxx xxxx xxxxxxxx x xxxxxx xxxxxxxxx xxxxxxxx xxxxxxx xxxx xxxxxx xxxxxxxxxx xx xxxxx xxx xxxx xxxxxxxxxxx xxxxxxx xx xxxxxxxxxxxxx xx xxx xxxxxxxxxx xx xxxx xx xxxxxxx xxxxx xxxxxxxxxxx xxx xxxxxxxxxx xxxx xxx xxxxxx xxxxxx xxxxx xx xxxxx xxxxxxxxxxx xxxx xx xxxxxxxx x xxxxxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "xxxx xx xxxx"
+              },
+              "oldString": {
+                "type": "string",
+                "description": "xxxxx xxxx xx xxxx xxx xxxxxxx"
+              },
+              "newString": {
+                "type": "string",
+                "description": "xxxx xx xxxxxxx xxxxxxxxx xxxx xxxxx xxxxxx xxxx xxxxxxxxxx"
+              },
+              "replaceAll": {
+                "type": "boolean",
+                "description": "xxxxxxx xx xxxxxxx xxxxx xxxxxxxxxx xx xxxxxxxxxx xxxx xxxxxx xxxxxxxxx xxxx xxxxx xxxxxxx xxxxx xxxxxxxx xx xxxxxx"
+              }
+            },
+            "required": [
+              "path",
+              "oldString",
+              "newString"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "glob",
+          "description": "xxxxxx xxxx xxxxx xxxxx x xxxx xxxxxxx xxxxxxxxxx xxxxxxxxxx xxxxxxxxxxxxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "xxxx xxxxxxx xx xxxxx xxxxx xxxxxxx"
+              },
+              "path": {
+                "type": "string",
+                "description": "xxxxxxxxx xx xxxxxxx xxxxxxxx xx xxx xxxxxxx xxxxxxx xxxxxxxxxx"
+              },
+              "hidden": {
+                "type": "boolean",
+                "description": "xxxxxxx xxxxxx xxxxx xxx xxxxxxxxxxx xxxxxxxxx xxxxxxx"
+              },
+              "limit": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "xxxxxxx xxxxxx xx xxxxxxxx xxxxx xx xxxxxx xxxxxxxxx xxxx"
+              }
+            },
+            "required": [
+              "pattern"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "grep",
+          "description": "xxxxxx xxxx xxxxxxxx xxxxx xxxxxxxxx xxxxxxx xxxxxxxxxx xxxxxx xx xxxxxxx xxxx xxxxxxxxx xxx xx xx xxxxxx xxxxxxxx xxxxx xxxxxxxx xx xxxx xxxxxxxxx xxx xxxxxx xxxxxxxx xxxx xxxxxx xx xxxxxxxxxx xxxxxxx xxxxxxxx xxxx xxxxxx xxxx xxxxxxxx xxx xxxx xxxxxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "minLength": 1,
+                "description": "xxxxxxx xxxxxxxxxx xx xxxxxxx xxxx xx xxxxx xx xxxx xxxxxxxxx"
+              },
+              "path": {
+                "type": "string",
+                "description": "xxxx xx xxxxxxxxx xx xxxxxxx xxxxxxxx xx xxx xxxxxxx xxxxxxx xxxxxxxxxx"
+              },
+              "include": {
+                "type": "string",
+                "description": "xxxx xxxxxxx xx xxxxxx xxxxx xxxx xxxxxxxx xxxxxx xx xxxxxxxxxxxxx"
+              },
+              "literal": {
+                "type": "boolean",
+                "description": "xxxxx xxxxxxxxx xx xxxxx xxxx xxxxxxx xx x xxxxxxx xxxxxxxxxx xxxxxxxxx xxxxxxx"
+              },
+              "caseSensitive": {
+                "type": "boolean",
+                "description": "xxx xxxxxxxxxxxxxx xxxxxxxx xxxxxxxxx xxxxxx"
+              },
+              "limit": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "xxxxxxx xxxxxx xx xxxxxxxx xxxxx xx xxxxxx xxxxxxxxx xxxx"
+              }
+            },
+            "required": [
+              "pattern"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "question",
+          "description": "xxx xxxx xxxx xxxx xxx xxxx xx xxx xxx xxxx xxxxxxxxx xxxxxx xxxxxxxxxx xxxx xxxxxx xxx xxx\nxx xxxxxx xxxx xxxxxxxxxxx xx xxxxxxxxxxxx\nxx xxxxxxx xxxxxxxxx xxxxxxxxxxxx\nxx xxx xxxxxxxxx xx xxxxxxxxxxxxxx xxxxxxx xx xxx xxxx\nxx xxxxx xxxxxxx xx xxx xxxx xxxxx xxxx xxxxxxxxx xx xxxxx\n\nxxxxx xxxxxx\nx x xxxxx xxxx xxx xxxxxxx xxxxxx xx xxxxx xxxxxxxxxxxxxx xxxxx xxxxxxx x xxxxxxxx xxxxxx xxx xxxx xxxx xxxxxxx\nx xxx xxxxxxxxxx xxxxx xx xxxxx xxxxxxxxx xxxx xxxx xxx xxxxxx\nx xx xxx xxxxxxxxx x xxxxxxxx xxxxxxx xxxx xxxx xxx xxxxx xxxxxx xx xxx xxxx xxx xxx xxxxxxxxxxxxxxx xx xxx xxx xx xxx xxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "questions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "question": {
+                      "type": "string",
+                      "description": "xxxxxxxx xxxxxxxx"
+                    },
+                    "header": {
+                      "type": "string",
+                      "description": "xxxx xxxxx xxxxx xxxx xx xxxxxx"
+                    },
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "description": "xxxxxxx xxxx xxxx xxxxxx xxxxxxxx"
+                          },
+                          "description": {
+                            "type": "string",
+                            "description": "xxxxxxxxxxx xx xxxxxx"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "description"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "description": "xxxxxxxxx xxxxxxx"
+                    },
+                    "multiple": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "question",
+                    "header",
+                    "options"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "description": "xxxxxxxxx xx xxx"
+              }
+            },
+            "required": [
+              "questions"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "read",
+          "description": "xxxx xxx xxxxxxxx xx x xxxx xx xxxxxxxxxx xxxxxxxx xxxx xxxxxx xxxxxxx xxx xxxxx xxxxxx xxx xxxx xxx xxxxxxxxx xxxxxxxx xx xxx xxxxxx xxxx xxxx xxxx xx xxxxxxxx xx xxx xxxxxxx xxxx xxxxxx xx xxxxxxx xxxxxxxxxx xxx xxxxxx xx xxx xxxxxxxxx xxx xx xxx xxxx xx xxx xxxx xxxxxxxx xxxxxxxxx xxxxxxx xxx xxxxxxxx xxx xxx xxxxx xxx xxxxxx xxx xxxxx xx xxxx xxxxx xxxxx xx xxxxxxxxxxx xx xxxxxxxxx xxxxxx xxx xxxxxx xxxx xxxx xxxx xxxxx xxxxxxx xxx xxx xxxx xx xxxx xxxxxxxx xxxxxxx xx xxxxx xxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "xxxx xx xxxxxxxxx xx xxxx"
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "xxx xxxx xx xxxxxxxxx xxxxx xx xxxxx xxxxxxx xxxx xxxxxxxxx"
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "xxx xxxxxxx xxxxxx xx xxxxx xx xxxxxxxxx xxxxxxx xx xxxx xxxxxxxxx xx xxx xxxxxx xx xxxxx"
+              }
+            },
+            "required": [
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "shell",
+          "description": "xxxxxxx x xxxxx xxxxxxx xxx xxxxxx xxx xxxxxxx xxxxxxxx xxx xx xxxxxxx xxxxx xxxxx xxxxx xxxx xxxxx xxxxxxxxxx xxxxxx xx xxxxxxx xxxxxxxxxxx xxxxxx xxxxxxxxx xxxxx xxxx xxxxx xxxxxxxx xxxx xxxxxxxxx xxxx xxxxxx xx xxxxxx xxx xxxx xxxxxx xx xxxxx xx x xxxx xxx x xxxxxxxxx xxxxxxx xx xxxxxxxxx xxxx xx xxxxxxxxx xxxxxxxxxx xxxxxx xxxxxxxxx xxx xxxxxx xx xxxx xxxxxxx xxxxxxxx xxxxxx xx xxxxxxxx xxxxxxxx xxxxxxxxxx xxxxxxxx xxxx xx xxxxxxx xx xxxxxxxx xxxxxxxxxx xxxxxxxx xxxxxx xxxxxxxxxxxx xxx xxx xxxx xx xxxxxxxx xxxx xxxx xxxxxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "xxxxx xxxxxxx xxxxxx xx xxxxxxx"
+              },
+              "workdir": {
+                "type": "string",
+                "description": "xxxxxxx xxxxxxxxx xx xxxxxxx xxx xxxxxxx xxx xxxxxxxx xx xxx xxxxxxx xxxxxxx xxxxxxxxxx xxxx xxxxxxxxx xxxxx xxxxxxxx xxxxxxxxxxx xx xxx xxxxxxx xxx xxx xxx xxxxxxx xxxxxxxxx xxxx xxxxxxxx"
+              },
+              "timeout": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "xxxxxxx xx xxxxxxxxxxxxx xxx xx x xx xxxxxxx xxx xxxxxxxx xxxxxxxx xx xxxxxx xxx xxxxxxxxxx xxxxxxxxx xxxxxxxxxx xxxxxxxx xxxx xx xxxxxxx xx xxxxxxxx"
+              },
+              "background": {
+                "type": "boolean",
+                "description": "xxx xxx xxxxxxx xx xxx xxxxxxxxxx xxx xxxxxx xxxxxxxxxxx xxxxxxx xxx xxx xxxxxxx xxx xxxxxxxxxxxx xxxxxxxx xxx xx xxx xxxx xx xxx xxx xx xxx xxx xx xxx xxxxxxx xxxx xxxxx xxxx xxxxxxxxxx xxx xxxx xx xxxxxxxx xxxx xx xxxxxxxxxx xx xxx xxxx xxx xxxxxxxxxxx"
+              }
+            },
+            "required": [
+              "command"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "skill",
+          "description": "xxxx x xxxxxxxxxxx xxxxxxx xxxxxxxxxxxx xxx xxxxxxxxx xxxx xxx xxxxxxx xxxxxxxxxxxx xxxx xxx xxxx xx xxxx xxxxxxx xxx xxxxxxxxxxxx\n\nxxx xxxxx xx xxxx xxxxx xx xxxxxxxxx xxxxx xx x xxxxx xxxxxxxxxx xxxxxxxxxx xx xxx xxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "xxx xx xx xx xxxxxxxxx xxxxx xx x xxxxx xxxxxxxxxx xxxxxxxxxx xx xxx xxxx"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "subagent",
+          "description": "xxxxxx xx xxxxx xx x xxxxx xxxxxxx xx xxxx xx xxx xxxxxxxxx xxxxx\nxxx xxxxxx xxxxxxxx x xxxxxxxxx xxx xxx xxxx xxxx xxxxx xx xxxxxxxx xxxx xxxxxxxx xxxxxxxxxxxx xxxx xxx xxxxxxxxx\nxxx xxxxx xxxxxxxx xxxxx xxxx xxxxx xxxxxxxx xx xxxxxxx xxx xxxxxxxx xxxxxxx xxx xxxxxxxxxxxx xxxx xxx xxxxx xxxx x xxxxxxxxxx\nxxxxxxxxxx xxxxxxxxx xxxx xxx xxxxxxxx xx xxxxxxxxxx xxx xxxxxxx xxx xxxxx xxxxxxxxx\nxxxxxxxxxx xxxx xxxxxxxxxxxxxxxxx xxxxxxxx xx xxxxxxxxxxxxxx xxx xxxxxxx xxxxxxxxxxxx xxx xxx xxxxxxxx xxxx xx xxxxxxxxx\nxxx xxxxxxxxxx xxxx xxx xxxxxxxxxxx xxxx xxxx xxx xxx xxxxx xxx xxxxxxxx xxxxxxxxxx\n\nxxxxxxxxx xxxxxxxxxx\nx xxxxxxxx xxxx xxxxx xxxxxxxxxxx xxx xxxxxxxxx xxxxxxxxxx xxx xxxx xxxx xxx xxxx xx xxxxxxx xxxx xxxxx xx xxxxxxxx xxxx xxxxxxxxxxxxxxxxxxxxxxxxxxx xxxxxx xxxx xxx xxxxxxxx xxxx xxxx xxxxxxxxxxxx xx xxxxxx xxxxxxxxx xxxxx xxx xxxxxxxx xxxx xxxx xx xxx xxxxxxxxx xxxxxxxx xxxx xxxxxxx xxxx xxxxxx xxxxxxx xxx xxxxxxx xxxxxxxxxxxx xxxxxx xxxxxxx xxx xxxxx xxxxxxxxx xxxxxxxx xxx xxxxxxxx xxxxxxxxxxxx xx xxxxx xxxxxxxxx xxx xxxxxxxxxxxxx xxxxxxxx xxxxxx xxxxxxxx xxxxxxxxx xxx xxxxxx xxxxxxxxxxxx\nx xxxxxxxx xxxxxxxxxxxxxxx xxxxx xxx xxxxxxxxxxx xxxxxxx xxxxxxxxx xxx xxxxxxxxx xxxxxxxxxx xxxxxx xxx xxxx xxxxx xx xxxxxxx xxxxxxxx xxxxx xx xxxx xx xxxxxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "agent": {
+                "type": "string",
+                "description": "xxx xxxx xx xxxxxxxxxxx xxxxx xx xxx xxx xxxx xxxxx xx xxx xxxx xxxx xxx x xxxxxxxx xx x xxxx xxxx xx xxx xxx xx xxx xxxxxxxxx xxxxxxxxxx xxxx xxxx xxxxxx xxxx x xxxxxx xxxx x xxxxxxxx xxxxx xxx xxxx xxx xxxx xxxxxxx xxx xxxxx xxxxxxxxx xxxxxxxx"
+              },
+              "description": {
+                "type": "string",
+                "description": "x xxxxx xxx xxxx xxxxx xxx xxx xxxxx xxxxxxxxx xx xxx xxxx"
+              },
+              "prompt": {
+                "type": "string",
+                "description": "xxx xxxx xxx xxx xxxxxxxx xx xxxxxxx"
+              },
+              "model": {
+                "type": "string",
+                "description": "xxxxx xxx xxxx xxxxxx xxx xxxx xxxxxxxxxx xxxx xxx x xxxxxxxxxx xxxxx xx xxxxxxxx xxx xxxxx xx xxxxxxx xx xxxxxxxxxxxxxxxxxxxxx xx xxxxxxxxxxxxxxxxxxxxxxxxxxxx xx xxxxxxx x xxxxxxxx xx xxx xxxxx xxx xxx xxxx xxx xxxxx xx xxxx xxx xxxxxx xxxxx xxxxxxxxx xx xxxx xxx xxxxxxxx xxxxxx"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses",
+                "description": "xxxxxxxx x xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxxxxxx xx xxxxxxx xxx xxxxxxxxxx xxxxx xxxxxxx x xxxxxxxxx xxxxx x xxx xxxxxxxxxxxxx"
+              },
+              "background": {
+                "type": "boolean",
+                "description": "xxx xxx xxxxxxxx xx xxx xxxxxxxxxx xxx xxxxxx xxxxxxxxxxxx xxx xxxx xx xxxxxxxx xxxx xx xxxxxxxxxx xx xxx xxxxxx xxxxx xx xxxxxxxxxxx xxxxx xx xxx xxxxxxxxx"
+              }
+            },
+            "required": [
+              "agent",
+              "description",
+              "prompt"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "webfetch",
+          "description": "xxxxx xxxxxxx xxxx xx xxxx xx xxxxx xxx xxx xxxxxx xx xx xxxxx xxxxxxxxx xx xxxxx xxxxxxxx xx xxx xxxxxxxx\n\nxxx x xxxx xxxxxxxx xxxx xxxx xxx xx xxxxxxxxxx xxxx xxxx xx xxxxxxxxxx xxxxx xxxx xxxxxxx xxx xx xxxxxxxx xxxx x xxxxxxx xxxxx xxx xxxxxxxx xxxxxx xx xxxxxxxx xx xxxxxxx xxxxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "xxx xxxx xx xxxxx xxx xx xxxxx xxxxxxx xxxx"
+              },
+              "format": {
+                "type": "string",
+                "enum": [
+                  "text",
+                  "markdown",
+                  "html"
+                ],
+                "description": "xxx xxxxxx xx xxxxxx xxx xxxxxxx xxx xxxxxxxx xx xxxxxxxxx"
+              },
+              "timeout": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 120,
+                "description": "xxxxxxxx xxxxxxx xx xxxxxxx xxxxxxxxx xxxx"
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "websearch",
+          "description": "xxxxxx xxx xxx xxxxx xxx xxxxxx xxxxxxxx xxxxxx xxxxxxxxxxxx xxx xxxx xxx xxxxxxx xxxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxx\n\nxxx xxxxxxx xxxx xx xxxxx xxx xxxx xxxx xxxx xxxxxxxxx xxx xxxxxx xxxxxxxxxxx xx xxxxxxx xxxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "xxxxxxxxx xxxxx"
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "write",
+          "description": "xxxxxx x xxxx xx xxx xxxxx xxxxxxxxxxx xxxxxxxxxxx xx xxx xxxxxxx\n\nxxxxxxx xxxxxx xxxxxxxxxxx xxx xxxxxxx xxxxxxxxxxxxxx\n\nxxx xxxx xxxx xx xxxxxx xxx xxxxx xx xxxxxxxxx xxxxxxxx xxxxxx xxx xxxxxxx xxxxxxxx xxx xxx xxxx xxxx xxxxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "xxxx xx xxx xxxx xx xxxxx xx"
+              },
+              "content": {
+                "type": "string",
+                "description": "xxxxxxx xx xxxxx xx xxx xxxx"
+              }
+            },
+            "required": [
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      },
+      {
+        "type": "function",
+        "function": {
+          "name": "execute",
+          "description": "xxx xxxxxxxxxx xx x xxxxxxxx xxxx xxxx xxxxxxx xx xxxxxx xxxx xxxxx xxx xxxx xxxxxxxx xxx xxxxxxx xxxxx xxxxxxxx\nxxxxxxx xx xxxxxxxxx xxx xxxx xxxxxxxxx xxxxxxxx xxxxxx xxxxxxxxxx xxxxxxx xxx xxxxxx xxx xxxxxxxxxxxx xxx xxxxx xxxxxxxx xxxxxx xxxx xxxxxxx xxxxxxxx\nxxxxxx xx xxxx xxx xxx xxxx xxxxxxxx xxxxx xxx xxxxx xxxxxxxxxx xxxxxx xx xxx xxxx xxxx xxxxxxx xxxxxxxxxxxx xx xxxxxxxx xx xxx xxxxxxxx xxxxxxxxx xxxxxx xx xxxx xxx xxxxxx xxxxx xxxxx xxxxxxx xxx xxxx xxxx xxxxxxxx xxxx xxx xxx xxxxxxxxx xx xxx xxxx xxxx xxxxxxxx\nxxxx xxxxx xxxxxxx xxxxxxx xxxxx xxxx xxxxx xxxxx xxx xxxxxxxxxx xxxx xxx xxxxxxxx xx xxx xxxxx xx xxxxxxxxx xxxx xxxxxx xxxxxxxx xxxxxxx xxxxxxxx xxxx xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nxxxxxx xx xxxxxxxx xxxxxxxxx xx xxxxxxxx xxx xxxxx xxxxxxxxx xxxxxxxxxx xxxxxxx xxx xxxxxxx\nxxxxx xxxxx xxxx xxxxx xxxxxxxxxx xxxxxxxx xxxxxxx xxxxx xxx xxxxxxxxxxx xxxx xxxxxxxxx xxxxx xxx xxxxxxxxxxx xxxxx xxxxxxxxxxxx xxxx xxxxxxxxxxxxxxxxxxxxx",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code"
+            ],
+            "additionalProperties": false
+          },
+          "strict": false
+        }
+      }
+    ],
+    "stream": true,
+    "stream_options": {
+      "include_usage": true
+    },
+    "max_completion_tokens": 16384,
+    "store": false
+  }
+}

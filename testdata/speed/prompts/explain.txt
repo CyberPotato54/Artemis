@@ -1,0 +1,7 @@
+<|im_start|>user
+Explain, for an experienced engineer, how speculative decoding with a multi-token-prediction head works and when it stops paying off. About 300 words.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

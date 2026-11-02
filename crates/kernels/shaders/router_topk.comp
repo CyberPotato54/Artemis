@@ -1,0 +1,76 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#define RED_N 256u
+#include "reduce.glsl"
+
+// The router, one workgroup for at most 256 experts: softmax over the logits (max and sum
+// from the trees), then k rounds of argmax under (probability descending, id ascending), each found by a tree that
+// returns the same winner whatever its shape; the chosen probabilities normalized by their in-order sum, floored at
+// 6.103515625e-5. Writes probs, ids (as f32, test 2's format) and weights. Workgroup x is the token of a batch:
+// logits and probs hold [tokens][n], ids and weights [tokens][k].
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t logits;
+    uint64_t probs;
+    uint64_t ids;
+    uint64_t w;
+    uint n;
+    uint k;
+} p;
+
+shared float pv[256];
+shared float bv[256];
+shared uint bi[256];
+shared float selp[16];
+
+void main() {
+    uint t = gl_LocalInvocationID.x, tok = gl_WorkGroupID.x;
+    F32s logits = F32s(p.logits + 4ul * uint64_t(tok * p.n));
+    F32s probs = F32s(p.probs + 4ul * uint64_t(tok * p.n));
+    F32s ids = F32s(p.ids + 4ul * uint64_t(tok * p.k));
+    F32s wts = F32s(p.w + 4ul * uint64_t(tok * p.k));
+    float x = t < p.n ? logits.v[t] : neg_inf();
+    float m = red_max(0u, t, x);
+    float e = t < p.n ? exp(x - m) : 0.0;
+    float s = red_sum(0u, t, e);
+    float pr = e / s;
+    if (t < p.n) {
+        probs.v[t] = pr;
+    }
+    pv[t] = t < p.n ? pr : -1.0;
+    barrier();
+    for (uint j = 0u; j < p.k; j++) {
+        bv[t] = pv[t];
+        bi[t] = t;
+        barrier();
+        for (uint st = 128u; st > 0u; st >>= 1u) {
+            if (t < st) {
+                float b = bv[t + st];
+                uint ib = bi[t + st];
+                if (b > bv[t] || (b == bv[t] && ib < bi[t])) {
+                    bv[t] = b;
+                    bi[t] = ib;
+                }
+            }
+            barrier();
+        }
+        if (t == 0u) {
+            uint win = bi[0];
+            ids.v[j] = float(win);
+            selp[j] = bv[0];
+            pv[win] = -1.0;
+        }
+        barrier();
+    }
+    if (t == 0u) {
+        float sum = 0.0;
+        for (uint j = 0u; j < p.k; j++) {
+            sum += selp[j];
+        }
+        float den = max(sum, 6.103515625e-5);
+        for (uint j = 0u; j < p.k; j++) {
+            wts.v[j] = selp[j] / den;
+        }
+    }
+}

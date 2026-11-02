@@ -1,0 +1,12 @@
+[project]
+name = "artemis-tools"
+version = "0.0.0"
+description = "Artemis's Python tooling: test fixtures and test data. Not part of the engine."
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+fixtures = ["gguf==0.17.1", "numpy>=2"]
+
+[tool.uv]
+package = false

@@ -1,0 +1,9 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "max_tokens": 16,
+  "messages": [
+    {"role": "user", "content": "What is 17 times 3?"},
+    {"role": "assistant", "reasoning_content": "17 times 3 is 51.", "content": "17 times 3 is 51."},
+    {"role": "user", "content": "Now double that."}
+  ]
+}

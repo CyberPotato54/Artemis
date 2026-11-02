@@ -1,0 +1,74 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#include "quant.glsl"
+#include "slots.glsl"
+#include "mbox.glsl"
+#define RED_ROWS 8u
+#define RED_N 32u
+#include "reduce.glsl"
+
+// The routed experts' down projections: workgroup (x, j) computes rows 8x .. 8x + 8 of y[j] = down_j · act[j], with
+// down_j read through the slot table again, in matvec's layout.
+//
+// serve is experts_gate_up's: 0 refuses a CPU entry; 1 skips it (+0); 2 is the fallback pair, which
+// computes a CPU entry from its host address only when this token's wait did not succeed (status[0] != 0 at the
+// mailbox, or the layer's done flag is not seq) and writes nothing otherwise.
+layout(local_size_x = 32, local_size_y = 8) in;
+layout(push_constant) uniform Push {
+    uint64_t table;
+    uint64_t ids;
+    uint64_t act;
+    uint64_t y;
+    uint64_t status;
+    uint64_t mbox;
+    uint layer_base;
+    uint n_ff;
+    uint n_embd;
+    uint down_type;
+    uint down_off;
+    uint layer;
+    uint seq;
+    uint serve;
+} p;
+
+void main() {
+    uint lane = gl_LocalInvocationID.x, r = gl_LocalInvocationID.y;
+    uint row = gl_WorkGroupID.x * 8u + r;
+    uint j = gl_WorkGroupID.y;
+    uint e = uint(F32s(p.ids).v[j]);
+    Slot s = slot_at(p.table, p.layer_base + e);
+    bool as_host = false;
+    if (p.serve == 2u && s.loc == WHERE_CPU && s.addr != 0ul) {
+        MU m = MU(p.mbox);
+        uint st = atomicOr(m.v[STATUS_WORD], 0u);
+        uint dn = atomicOr(m.v[done_word(p.layer)], 0u);
+        as_host = st != 0u || dn != p.seq;
+    }
+    bool compute = row < p.n_embd && ((p.serve != 2u && usable(s)) || as_host);
+    float acc = 0.0;
+    if (compute) {
+        uint64_t dr = s.addr + uint64_t(p.down_off) + uint64_t(row) * uint64_t(row_bytes(p.down_type, p.n_ff));
+        uint64_t xa = p.act + uint64_t(4u * j * p.n_ff);
+        for (uint q = lane; q < p.n_ff / 32u; q += 32u) {
+            acc += unit_dot(p.down_type, dr, q, xa);
+        }
+    }
+    float total = red_sum(r, lane, acc);
+    if (lane == 0u && row < p.n_embd) {
+        if (p.serve == 2u) {
+            if (as_host) {
+                F32s(p.y).v[j * p.n_embd + row] = total;
+            } else if (!usable(s) && !(s.loc == WHERE_CPU && s.addr != 0ul)) {
+                refuse(p.status, s, p.layer, e);
+            }
+        } else if (p.serve == 1u && s.loc == WHERE_CPU && s.addr != 0ul) {
+            F32s(p.y).v[j * p.n_embd + row] = 0.0;
+        } else if (!usable(s)) {
+            refuse(p.status, s, p.layer, e);
+            F32s(p.y).v[j * p.n_embd + row] = uintBitsToFloat(0x7FC00000u);
+        } else {
+            F32s(p.y).v[j * p.n_embd + row] = total;
+        }
+    }
+}

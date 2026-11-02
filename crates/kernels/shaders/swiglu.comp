@@ -1,0 +1,19 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// The shared expert's activation: y = silu(g) ⊙ u.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t g;
+    uint64_t u;
+    uint64_t y;
+    uint n;
+} p;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i < p.n) {
+        F32s(p.y).v[i] = silu(F32s(p.g).v[i]) * F32s(p.u).v[i];
+    }
+}

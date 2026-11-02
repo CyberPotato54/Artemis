@@ -1,0 +1,26 @@
+[package]
+name = "engine"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "The Artemis engine: the model on the GPU, the slot table, sequence state, batched prefill and decode"
+
+[dependencies]
+cpu_expert = { path = "../cpu_expert" }
+gguf = { path = "../gguf" }
+kernels = { path = "../kernels" }
+qwen36 = { path = "../qwen36" }
+vk = { path = "../vk" }
+
+# The OS's available memory (the pool's limit at load), on Windows only.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation", "Win32_Foundation"] }
+
+[features]
+# Exports the scripted `FakeLoader` (`engine::fake`) for other crates' tests.
+fake = []
+
+[dev-dependencies]
+serde_json.workspace = true

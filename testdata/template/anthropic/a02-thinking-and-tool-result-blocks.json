@@ -1,0 +1,38 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "tools": [
+    {
+      "name": "get_weather",
+      "description": "Get the current weather for a city.",
+      "input_schema": {
+        "type": "object",
+        "properties": {"city": {"type": "string", "description": "City name."}},
+        "required": ["city"]
+      }
+    }
+  ],
+  "messages": [
+    {"role": "user", "content": "What is the weather in Oslo?"},
+    {
+      "role": "assistant",
+      "content": [
+        {"type": "thinking", "thinking": "I should look up the weather for Oslo.", "signature": "c2lnbmF0dXJl"},
+        {"type": "text", "text": "Let me check."},
+        {"type": "tool_use", "id": "toolu_1", "name": "get_weather", "input": {"city": "Oslo"}}
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_1",
+          "content": [
+            {"type": "text", "text": "Light snow."},
+            {"type": "text", "text": " -2 C."}
+          ]
+        }
+      ]
+    }
+  ]
+}

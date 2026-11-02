@@ -1,0 +1,35 @@
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+// The GPU side of a CPU handoff, `count` times: publish gpu_seq = k, then poll until the CPU answers cpu_seq = k.
+// If one answer takes more than max_spins polls, count a timeout and end the dispatch, so a missing CPU can't
+// keep the GPU busy long enough to trip the Windows watchdog. Every 1,024 polls (an answer already about a millisecond
+// late) a wait also gives up, uncounted, if another wait has timed out: a command buffer of many waits (the
+// decode-shaped probe) then costs one wait's spins when the CPU is gone, not one per wait.
+//
+// Measured on the RX 9070 XT (2026-10-08): only atomics on AMD device-uncached memory
+// (VK_AMD_device_coherent_memory) see the CPU's writes promptly. Plain stores and volatile loads, or atomics on
+// ordinary host-coherent memory, stall in the GPU's caches for milliseconds. GLSL450 atomics here; a Vulkan
+// memory-model version also works but needs `#pragma use_vulkan_memory_model`.
+layout(local_size_x = 1) in;
+layout(buffer_reference, std430, buffer_reference_align = 4) coherent volatile buffer Flags { uint gpu_seq; uint cpu_seq; uint timeouts; };
+layout(push_constant) uniform Push { uint64_t flags; uint first; uint count; uint max_spins; uint pad; } p;
+
+void main() {
+    Flags f = Flags(p.flags);
+    for (uint k = p.first; k < p.first + p.count; k++) {
+        atomicExchange(f.gpu_seq, k);
+        uint spins = 0u;
+        while (atomicOr(f.cpu_seq, 0u) != k) {
+            spins++;
+            if (spins >= p.max_spins) {
+                atomicAdd(f.timeouts, 1u);
+                return;
+            }
+            if ((spins & 1023u) == 0u && atomicOr(f.timeouts, 0u) != 0u) {
+                return;
+            }
+        }
+    }
+}

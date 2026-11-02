@@ -1,0 +1,79 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#define RED_N 256u
+#include "reduce.glsl"
+
+// attn_decode over up to 16 queries: query i, i in [first, tokens), is the query at
+// position n_ctx0 + i - 1 and attends the n_ctx = n_ctx0 + i cached positions 0 ..= n_ctx0 + i - 1 (its own key
+// included), as one decode step at that length would. Workgroup (s, h) loops over its queries and, for each one with 256s < n_ctx, does attn_decode's arithmetic
+// operation for operation: it covers cached positions [256s, 256s + 256) for query head h, which reads KV head
+// h / group. Thread t scores position 256s + t (q·k in order over the head's dims, times scale); the chunk's max m and
+// l = Σ exp(score - m) come from the trees; thread d then sums exp(score_j - m)·v_j[d] over the chunk's positions in
+// order. Writes [m, l, acc[0..hd]] to query i's slot of `part`, [tokens][n_head][max_split][hd + 2], for
+// attn_combine_tokens; a query with fewer than s + 1 chunks leaves slot s alone.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t q;
+    uint64_t kc;
+    uint64_t vc;
+    uint64_t part;
+    uint n_ctx0;
+    uint first;
+    uint tokens;
+    uint hd;
+    uint group;
+    uint kv_width;
+    uint max_split;
+    float scale;
+} p;
+
+shared float qs[256];
+shared float ws[256];
+
+void main() {
+    uint s = gl_WorkGroupID.x, h = gl_WorkGroupID.y, t = gl_LocalInvocationID.x;
+    uint kvh = h / p.group;
+    uint n_head = p.group * (p.kv_width / p.hd);
+    uint t0 = 256u * s;
+    for (uint i = p.first; i < p.tokens; i++) {
+        uint n_ctx = p.n_ctx0 + i;
+        // Uniform across the workgroup, so the barriers below are reached by all of it or none.
+        if (t0 >= n_ctx) {
+            continue;
+        }
+        uint nt = min(256u, n_ctx - t0);
+        if (t < p.hd) {
+            qs[t] = F32s(p.q).v[(i * n_head + h) * p.hd + t];
+        }
+        barrier();
+        float score = neg_inf();
+        if (t < nt) {
+            uint64_t kr = p.kc + uint64_t(2u * ((t0 + t) * p.kv_width + kvh * p.hd));
+            float acc = 0.0;
+            for (uint k = 0u; k < p.hd; k++) {
+                acc += unpackHalf2x16(uint(U16s(kr).v[k])).x * qs[k];
+            }
+            score = acc * p.scale;
+        }
+        float m = red_max(0u, t, score);
+        float e = t < nt ? exp(score - m) : 0.0;
+        float l = red_sum(0u, t, e);
+        ws[t] = e;
+        barrier();
+        F32s dst = F32s(p.part + uint64_t(4u * ((i * n_head + h) * p.max_split + s) * (p.hd + 2u)));
+        if (t < p.hd) {
+            float acc = 0.0;
+            for (uint j = 0u; j < nt; j++) {
+                acc += ws[j] * unpackHalf2x16(uint(U16s(p.vc).v[(t0 + j) * p.kv_width + kvh * p.hd + t])).x;
+            }
+            dst.v[2u + t] = acc;
+        }
+        if (t == 0u) {
+            dst.v[0] = m;
+            dst.v[1] = l;
+        }
+        // The next query rewrites qs and ws.
+        barrier();
+    }
+}

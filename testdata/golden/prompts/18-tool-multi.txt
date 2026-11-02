@@ -1,0 +1,39 @@
+<|im_start|>system
+# Tools
+
+You have access to the following functions:
+
+<tools>
+{"type": "function", "function": {"name": "run_shell", "description": "Run a shell command in the repository and return its exit code, stdout and stderr.", "parameters": {"type": "object", "properties": {"command": {"type": "string", "description": "The command line"}, "timeout_s": {"type": "integer", "description": "Seconds before the command is killed; default 120"}}, "required": ["command"]}}}
+{"type": "function", "function": {"name": "read_file", "description": "Read a file from the repository.", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "The file's path"}}, "required": ["path"]}}}
+{"type": "function", "function": {"name": "write_file", "description": "Replace a file's contents.", "parameters": {"type": "object", "properties": {"path": {"type": "string", "description": "The file's path"}, "content": {"type": "string", "description": "The new contents"}}, "required": ["path", "content"]}}}
+</tools>
+
+If you choose to call a function ONLY reply in the following format with NO suffix:
+
+<tool_call>
+<function=example_function_name>
+<parameter=example_parameter_1>
+value_1
+</parameter>
+<parameter=example_parameter_2>
+This is the value for the second parameter
+that can span
+multiple lines
+</parameter>
+</function>
+</tool_call>
+
+<IMPORTANT>
+Reminder:
+- Function calls MUST follow the specified format: an inner <function=...></function> block must be nested within <tool_call></tool_call> XML tags
+- Required parameters MUST be specified
+- You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after
+- If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls
+</IMPORTANT>
+
+You are a coding agent working in a Rust repository at /work/parser. Use the tools to inspect and change files. Make the smallest change that fixes the problem.<|im_end|>
+<|im_start|>user
+`cargo test` has failed since my last commit. Find out why and fix it.<|im_end|>
+<|im_start|>assistant
+<think>

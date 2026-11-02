@@ -1,0 +1,32 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "system": "You are a careful assistant.",
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Read a text file.",
+      "input_schema": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "description": "File path."}},
+        "required": ["path"]
+      }
+    }
+  ],
+  "messages": [
+    {"role": "user", "content": "Read missing.txt."},
+    {
+      "role": "assistant",
+      "content": [
+        {"type": "tool_use", "id": "toolu_1", "name": "read_file", "input": {"path": "missing.txt"}}
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {"type": "tool_result", "tool_use_id": "toolu_1", "content": "No such file: missing.txt", "is_error": true}
+      ]
+    },
+    {"role": "assistant", "content": "That file does not exist."},
+    {"role": "user", "content": "Thanks."}
+  ]
+}

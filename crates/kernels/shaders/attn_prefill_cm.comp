@@ -1,0 +1,328 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_KHR_cooperative_matrix : require
+#extension GL_KHR_memory_scope_semantics : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
+#extension GL_EXT_control_flow_attributes : require
+#include "common.glsl"
+#include "quant.glsl"
+#include "quant8.glsl"
+
+// Causal attention for a batch of queries over the f16 KV cache on 16 × 16 × 16 f16 → f32 cooperative matrices, with q
+// and the softmax weights p each split into a hi and a lo f16 (split2; K and V are exact f16 in the cache): the same
+// result as attn_prefill.comp within kernels::tol::REDUCTION, and kernels::twin::attention::attn_prefill_cm is this
+// kernel's arithmetic written out on the CPU (the two differ in the order of the sums inside a slice, since every f16 ×
+// f16 product is exact in f32, and in the GPU's rounding of exp and of the division). q and y hold [tokens][n_head][hd];
+// hd is 64, 128, 192 or 256 (dispatch.rs's attn_prefill_cm_fits).
+//
+// Tile. A workgroup of 256 invocations takes the 64 queries q0 = 64·b .. q0 + nq (nq = min(64, tokens − q0)) of query
+// head h, which reads KV head h / group; query i sits at position pos + i and sees cached positions 0 ..= pos + i. The
+// rows are four 16-row M tiles. Keys are walked in blocks of 32 aligned to position 0, from 0 to the workgroup's last
+// position (last = pos + q0 + nq − 1), whatever the batch.
+//
+// Split and slices. q is split once per workgroup into hi = f16(q) and lo = f16(q − hi) and held in registers as A
+// operands for the whole key loop. A score takes the head dimension 32 values at a time: a slice's partial starts at
+// zero and adds lo·K then hi·K for each of its two 16-value halves (K needs no lo), and the slice's partial is then
+// added to the score with an ordinary f32 add (`precise`: the hardware's accumulate measured biased, matmul_cm.glsl).
+// The score is multiplied by `scale`. p = exp(score − m) is computed in f32 and split the same way; the block's PV is one
+// 32-key slice: a zeroed partial takes lo·V then hi·V for each 16-key half, and O = (O ⊙ α) + partial with the product
+// and the sum rounded apart (`precise`).
+//
+// Invariance and the masked-block no-op. A query's result depends neither on the batch nor on the subgroup count (the
+// batch tests and `sg_limit` tests pin it): the blocks are aligned to absolute positions; every sum runs in an order
+// fixed by shapes; the max, α, l and p are per row; a row's arithmetic is the same whichever subgroup computes its tile
+// and in whichever pass. A workgroup reaches past a row's own position, so a row walks blocks wholly masked for it, and
+// each is an exact no-op: all its scores are −inf, so the block max is −inf in all four quarters and m = max(m_old, −inf)
+// is m_old bit for bit; α is 1.0 by the select `m == mo`; p is chosen by the mask (`ok ? exp(x − m) : 0.0`), never
+// computed from −inf, so hi and lo are both +0; V's rows are finite (below), so the partial is a sum of zeros from a
+// zeroed matrix, +0; O ⊙ 1.0 is O, O + 0 is O (O is never −0), l·1.0 + 0 is l.
+//
+// Stale rows. Cache rows past the batch can hold NaN, and 0·NaN is NaN, so masking after the product can't protect V:
+// K's and V's rows past `last` are written as zeros when staged and never read from the cache. A row past the batch (a
+// part-full last workgroup) has its q staged as zeros and every score masked, so its m stays −inf, α is 1.0, p is 0.0 and
+// l stays 0; nothing is written for it (`row < nq` on the output).
+//
+// Ownership, for any subgroup count, in passes. ns is the workgroup's subgroup count (a power of two; `sg_limit`, a
+// test hook, lowers it, and subgroups s ≥ ns are idle: they do no cooperative-matrix work but hit every barrier). A pass
+// takes na = min(ns, 4) M tiles m0 .. m0 + na, so there are 4 / na passes. In a pass subgroup s < ns takes M tile
+// mt = m0 + s % na and part own = s / na of owners = ns / na parts: of the two score tiles a block, those with key tile
+// ≡ own (mod owners); of the hd / 16 output tiles, those with n ≡ own (mod owners). For ns ≥ 4 there is one pass:
+// four subgroups each take an M tile, both score tiles and all output tiles, eight split them in two. Each pass is the
+// whole kernel (q staging, key loop, output) for its M tiles only: a row's state (PM, PS, AS, MS, LS, its output) is
+// touched only in the pass that holds its M tile (it is live there), and acc is zeroed at each pass's start. Invocation
+// t handles row t / 4 in every row step and pass. Every barrier is in uniform control flow: ns, na and the pass count are
+// the same across the workgroup, and an idle subgroup or a row that isn't live skips work, never a barrier. No array of
+// cooperative matrices is indexed by a runtime value: every loop over one is unrolled over its constant maximum, guarded
+// by the head's size and the subgroup's ownership.
+//
+// Shared memory, one array of 7,488 uints = 29,952 bytes (dispatch.rs's ATTN_CM_SHARED_BYTES; change them together):
+//   KV  4,224 uints = 16,896 B: a block's 32 rows of K, then of V, as the cache's f16 pairs, rows padded to 264 halves
+//                               (KVS = 132 uints, 528 B, a multiple of 16 as coopMatLoad needs). Before a pass's key loop
+//                               it holds one M tile's q hi and lo, [16][264] halves each; after it, with SP, the
+//                               [64][68] f32 output stage (17,408 B).
+//   SP  2,560 uints = 10,240 B: the block's scores, f32 [64][36]; then, over them, p hi at offset 0 and p lo at offset
+//                               1,280, f16 [64][40] (stride 20 uints). Before the loop, the 16 × 16 row-index matrix.
+//   PM, PS 256 uints each = 2,048 B: each row's four quarter maxima, then quarter sums, f32 [64][4].
+//   MS, LS, AS 64 uints each = 768 B: each row's running max, running sum and this block's α.
+// α by row index: an accumulator's element-to-row map is the implementation's, so each active subgroup loads once an
+// accumulator `ri` whose row r holds r, and per block reads its rows' α through it into an accumulator of the same
+// type; accumulators of one type hold their elements in the same order (experts_matmul_cm_gate_up.comp relies on it).
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t q;
+    uint64_t kc;
+    uint64_t vc;
+    uint64_t y;
+    uint pos;
+    uint tokens;
+    uint hd;
+    uint group;
+    uint kv_width;
+    float scale;
+    uint sg_limit;
+    uint pad;
+} p;
+
+// QB and KB are dispatch.rs's ATTN_CM_QUERIES and ATTN_CM_KEYS: they must change together.
+#define QB 64u
+#define KB 32u
+#define KVS 132u
+#define KV 0u
+#define SP 4224u
+#define PM 6784u
+#define PS 7040u
+#define MS 7296u
+#define LS 7360u
+#define AS 7424u
+shared uint sm[7488];
+
+#define CM_A coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseA>
+#define CM_B coopmat<float16_t, gl_ScopeSubgroup, 16, 16, gl_MatrixUseB>
+#define CM_C coopmat<float, gl_ScopeSubgroup, 16, 16, gl_MatrixUseAccumulator>
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Halves8 { uvec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Vec4s { vec4 v[]; };
+
+float f(uint region, uint i) {
+    return uintBitsToFloat(sm[region + i]);
+}
+
+// Rows k0 .. k0 + 32 of KV head kvh's cache into KV as they are, eight halves (16 bytes) a load; rows past `last` as
+// zeros, never read from memory.
+void stage(uint64_t cache, uint k0, uint last, uint kvh, uint t) {
+    uint per = p.hd / 8u;
+    for (uint e = t; e < KB * per; e += 256u) {
+        uint j = e / per, c = e % per;
+        uint kp = k0 + j;
+        uvec4 w = uvec4(0u);
+        if (kp <= last) {
+            w = Halves8(cache + 2ul * uint64_t(kp * p.kv_width + kvh * p.hd + 8u * c)).v[0];
+        }
+        uint at = KV + j * KVS + 4u * c;
+        sm[at] = w.x;
+        sm[at + 1u] = w.y;
+        sm[at + 2u] = w.z;
+        sm[at + 3u] = w.w;
+    }
+}
+
+void main() {
+    uint t = gl_LocalInvocationIndex;
+    uint b = gl_WorkGroupID.x, h = gl_WorkGroupID.y;
+    uint n_head = gl_NumWorkGroups.y;
+    uint kvh = h / p.group;
+    uint q0 = QB * b;
+    uint nq = min(QB, p.tokens - q0);
+    uint last = p.pos + q0 + nq - 1u;
+
+    uint s = gl_SubgroupID;
+    uint ns = p.sg_limit == 0u ? gl_NumSubgroups : min(p.sg_limit, gl_NumSubgroups);
+    uint na = min(ns, 4u);
+    bool act = s < ns;
+    uint owners = ns / na, own = s / na;
+    // Invocation t's row in the row steps, and its slice of the row's keys.
+    uint r = t / 4u, c = t % 4u;
+    uint qpos = p.pos + q0 + r;
+
+    // Start, once: the row-index matrix, and every row's running max and sum.
+    sm[SP + t] = floatBitsToUint(float(t / 16u));
+    if (t < 64u) {
+        sm[MS + t] = floatBitsToUint(neg_inf());
+        sm[LS + t] = 0u;
+    }
+    barrier();
+    CM_C ri = CM_C(0.0);
+    if (act) {
+        coopMatLoad(ri, sm, SP, 16u, gl_CooperativeMatrixLayoutRowMajor);
+    }
+
+    CM_C acc[16];
+    CM_A qh[16], ql[16];
+    for (uint pass = 0u; pass < 4u / na; pass++) {
+        uint m0 = pass * na;
+        uint mt = m0 + s % na;
+        bool live = r / 16u - m0 < na;
+        [[unroll]] for (uint i = 0u; i < 16u; i++) {
+            acc[i] = CM_C(0.0);
+        }
+        // This pass's q: each M tile in turn split into KV as hi [16][264] then lo [16][264] halves, rows past the batch
+        // as zeros, and loaded by the subgroups that own it.
+        for (uint i = 0u; i < na; i++) {
+            uint rows0 = 16u * (m0 + i);
+            for (uint e = t; e < 4u * p.hd; e += 256u) {
+                uint row = e / (p.hd / 4u), c4 = e % (p.hd / 4u);
+                vec4 v = vec4(0.0);
+                if (rows0 + row < nq) {
+                    v = Vec4s(p.q + 4ul * uint64_t(((q0 + rows0 + row) * n_head + h) * p.hd + 4u * c4)).v[0];
+                }
+                uint lo0, lo1;
+                uint at = KV + row * KVS + 2u * c4;
+                sm[at] = split2(v.x, v.y, lo0);
+                sm[at + 1u] = split2(v.z, v.w, lo1);
+                sm[at + 16u * KVS] = lo0;
+                sm[at + 16u * KVS + 1u] = lo1;
+            }
+            barrier();
+            if (act && s % na == i) {
+                [[unroll]] for (uint tq = 0u; tq < 16u; tq++) {
+                    if (tq < p.hd / 16u) {
+                        coopMatLoad(qh[tq], sm, KV + 8u * tq, KVS, gl_CooperativeMatrixLayoutRowMajor);
+                        coopMatLoad(ql[tq], sm, KV + 16u * KVS + 8u * tq, KVS, gl_CooperativeMatrixLayoutRowMajor);
+                    }
+                }
+            }
+            barrier();
+        }
+
+        for (uint k0 = 0u; k0 <= last; k0 += KB) {
+            // 1. K's rows into KV, all hd dims.
+            stage(p.kc, k0, last, kvh, t);
+            barrier();
+            // 2. Scores, from zero a 32-dim slice at a time: B = K's tile loaded ColumnMajor (B[d][j] = K[j][d]), lo·K
+            //    then hi·K for each half into a zeroed partial, then the slice added to the score under `precise`.
+            if (act) {
+                [[unroll]] for (uint kt = 0u; kt < 2u; kt++) {
+                    if (kt % owners == own) {
+                        CM_C sc = CM_C(0.0);
+                        [[unroll]] for (uint sl = 0u; sl < 8u; sl++) {
+                            if (sl < p.hd / 32u) {
+                                CM_B b0, b1;
+                                coopMatLoad(b0, sm, KV + 16u * kt * KVS + 16u * sl, KVS, gl_CooperativeMatrixLayoutColumnMajor);
+                                coopMatLoad(b1, sm, KV + 16u * kt * KVS + 16u * sl + 8u, KVS, gl_CooperativeMatrixLayoutColumnMajor);
+                                CM_C part = CM_C(0.0);
+                                part = coopMatMulAdd(ql[2u * sl], b0, part);
+                                part = coopMatMulAdd(qh[2u * sl], b0, part);
+                                part = coopMatMulAdd(ql[2u * sl + 1u], b1, part);
+                                part = coopMatMulAdd(qh[2u * sl + 1u], b1, part);
+                                precise CM_C sum = sc + part;
+                                sc = sum;
+                            }
+                        }
+                        coopMatStore(sc, sm, SP + 16u * mt * 36u + 16u * kt, 36u, gl_CooperativeMatrixLayoutRowMajor);
+                    }
+                }
+            }
+            barrier();
+            // 3. V's rows into KV. Each row's eight scores of the block, masked, and their max: invocation t takes row
+            //    r = t / 4, keys 8c .. 8c + 8, in every pass; a row that isn't live this pass writes nothing.
+            stage(p.vc, k0, last, kvh, t);
+            bool ok[8];
+            float x[8];
+            float pm = neg_inf();
+            [[unroll]] for (uint u = 0u; u < 8u; u++) {
+                uint j = 8u * c + u;
+                ok[u] = live && r < nq && k0 + j <= qpos;
+                x[u] = ok[u] ? uintBitsToFloat(sm[SP + 36u * r + j]) * p.scale : neg_inf();
+                pm = max(pm, x[u]);
+            }
+            if (live) {
+                sm[PM + 4u * r + c] = floatBitsToUint(pm);
+            }
+            barrier();
+            // 4. The row's max, α and p (split over the scores, which every invocation has read), and the quarter's sum.
+            float mo = uintBitsToFloat(sm[MS + r]);
+            float m = max(mo, max(max(f(PM, 4u * r), f(PM, 4u * r + 1u)), max(f(PM, 4u * r + 2u), f(PM, 4u * r + 3u))));
+            float a = m == mo ? 1.0 : (mo == neg_inf() ? 0.0 : exp(mo - m));
+            float pj[8];
+            float ps = 0.0;
+            [[unroll]] for (uint u = 0u; u < 8u; u++) {
+                pj[u] = ok[u] ? exp(x[u] - m) : 0.0;
+                ps += pj[u];
+            }
+            if (live) {
+                [[unroll]] for (uint u = 0u; u < 8u; u += 2u) {
+                    uint lo;
+                    sm[SP + 20u * r + 4u * c + u / 2u] = split2(pj[u], pj[u + 1u], lo);
+                    sm[SP + 1280u + 20u * r + 4u * c + u / 2u] = lo;
+                }
+                sm[PS + 4u * r + c] = floatBitsToUint(ps);
+                if (c == 0u) {
+                    sm[AS + r] = floatBitsToUint(a);
+                }
+            }
+            barrier();
+            // 5. The row's sum and max (only now: step 4 read MS), then PV on the owned output tiles.
+            if (live && c == 0u) {
+                precise float s4 = ((f(PS, 4u * r) + f(PS, 4u * r + 1u)) + f(PS, 4u * r + 2u)) + f(PS, 4u * r + 3u);
+                precise float l = uintBitsToFloat(sm[LS + r]) * a + s4;
+                sm[LS + r] = floatBitsToUint(l);
+                sm[MS + r] = floatBitsToUint(m);
+            }
+            if (act) {
+                CM_C am = CM_C(0.0);
+                for (uint e = 0u; e < am.length(); e++) {
+                    am[e] = uintBitsToFloat(sm[AS + 16u * mt + uint(ri[e])]);
+                }
+                CM_A pl0, ph0, pl1, ph1;
+                coopMatLoad(pl0, sm, SP + 1280u + 16u * mt * 20u, 20u, gl_CooperativeMatrixLayoutRowMajor);
+                coopMatLoad(ph0, sm, SP + 16u * mt * 20u, 20u, gl_CooperativeMatrixLayoutRowMajor);
+                coopMatLoad(pl1, sm, SP + 1280u + 16u * mt * 20u + 8u, 20u, gl_CooperativeMatrixLayoutRowMajor);
+                coopMatLoad(ph1, sm, SP + 16u * mt * 20u + 8u, 20u, gl_CooperativeMatrixLayoutRowMajor);
+                [[unroll]] for (uint n = 0u; n < 16u; n++) {
+                    if (n < p.hd / 16u && n % owners == own) {
+                        for (uint e = 0u; e < am.length(); e++) {
+                            precise float v = acc[n][e] * am[e];
+                            acc[n][e] = v;
+                        }
+                        CM_B v0, v1;
+                        coopMatLoad(v0, sm, KV + 8u * n, KVS, gl_CooperativeMatrixLayoutRowMajor);
+                        coopMatLoad(v1, sm, KV + 16u * KVS + 8u * n, KVS, gl_CooperativeMatrixLayoutRowMajor);
+                        CM_C part = CM_C(0.0);
+                        part = coopMatMulAdd(pl0, v0, part);
+                        part = coopMatMulAdd(ph0, v0, part);
+                        part = coopMatMulAdd(pl1, v1, part);
+                        part = coopMatMulAdd(ph1, v1, part);
+                        precise CM_C sum = acc[n] + part;
+                        acc[n] = sum;
+                    }
+                }
+            }
+            barrier();
+        }
+
+        // Output, 64 head dimensions at a time through the [64][68] f32 stage at KV: the owning subgroups store their
+        // tiles, then every invocation writes the pass's rows (a row of the pass's M tiles, inside the batch) divided
+        // by the row's sum. The last barrier frees KV for the next pass's q.
+        [[unroll]] for (uint g = 0u; g < 4u; g++) {
+            if (g < p.hd / 64u) {
+                if (act) {
+                    [[unroll]] for (uint i = 0u; i < 4u; i++) {
+                        if ((4u * g + i) % owners == own) {
+                            coopMatStore(acc[4u * g + i], sm, 16u * mt * 68u + 16u * i, 68u, gl_CooperativeMatrixLayoutRowMajor);
+                        }
+                    }
+                }
+                barrier();
+                for (uint e = t; e < 64u * 64u; e += 256u) {
+                    uint row = e / 64u, col = e % 64u;
+                    if (row / 16u - m0 < na && row < nq && 64u * g + col < p.hd) {
+                        F32s(p.y).v[((q0 + row) * n_head + h) * p.hd + 64u * g + col] =
+                            uintBitsToFloat(sm[68u * row + col]) / uintBitsToFloat(sm[LS + row]);
+                    }
+                }
+                barrier();
+            }
+        }
+    }
+}

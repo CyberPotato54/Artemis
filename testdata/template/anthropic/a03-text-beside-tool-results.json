@@ -1,0 +1,32 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Read a text file.",
+      "input_schema": {
+        "type": "object",
+        "properties": {"path": {"type": "string", "description": "File path."}},
+        "required": ["path"]
+      }
+    }
+  ],
+  "messages": [
+    {"role": "user", "content": "Check a and b."},
+    {
+      "role": "assistant",
+      "content": [
+        {"type": "tool_use", "id": "toolu_a", "name": "read_file", "input": {"path": "a.txt"}},
+        {"type": "tool_use", "id": "toolu_b", "name": "read_file", "input": {"path": "b.txt"}}
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "Also check b."},
+        {"type": "tool_result", "tool_use_id": "toolu_a", "content": "contents of a"},
+        {"type": "tool_result", "tool_use_id": "toolu_b", "content": "contents of b"}
+      ]
+    }
+  ]
+}

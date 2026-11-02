@@ -1,0 +1,21 @@
+[package]
+name = "kernels"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+description = "Artemis's GPU kernels (GLSL, compiled by build.rs), a recording helper for each, and their CPU twins"
+
+[[bin]]
+name = "update-spirv"
+path = "src/bin/update_spirv.rs"
+
+[dependencies]
+half.workspace = true
+qwen36 = { path = "../qwen36" }
+vk = { path = "../vk" }
+
+[dev-dependencies]
+gguf = { path = "../gguf" }
+cpu_expert = { path = "../cpu_expert" }

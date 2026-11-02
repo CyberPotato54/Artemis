@@ -1,0 +1,6 @@
+<|im_start|>user
+Summarize this passage in three sentences for a general reader.
+
+For most of history, a lighthouse was a fire on a tower. Wood, coal and later oil lamps burned in the open or behind glass, and most of their light went everywhere except out to sea. Mirrors helped: by the late eighteenth century, polished metal reflectors shaped as parabolas gathered the light of an oil lamp into a beam. But the reflectors tarnished, and even a clean one lost about half its light. In 1822 the French physicist Augustin Fresnel proposed a lens built from concentric rings of glass prisms. Each ring bent the light by a different angle, so together they acted like one large curved lens at a fraction of its weight and thickness. The first Fresnel lens was lit at the Cordouan lighthouse in 1823, and its beam could be seen more than twenty miles away. Within fifty years the design had spread to coasts around the world. Lenses were graded by size into orders, from the first order, taller than a person, to the small sixth order used in harbours. Many of them are still in place today, although electric lamps and automatic controls replaced the keepers who once trimmed the wicks every night.<|im_end|>
+<|im_start|>assistant
+<think>

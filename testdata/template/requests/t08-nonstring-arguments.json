@@ -1,0 +1,46 @@
+{
+  "model": "qwen3.6-35b-a3b",
+  "max_tokens": 16,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "record_values",
+        "description": "Record a set of values.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "n": {"type": "integer"},
+            "f": {"type": "number"},
+            "g": {"type": "number"},
+            "e": {"type": "number"},
+            "b": {"type": "boolean"},
+            "z": {"type": "null"},
+            "o": {"type": "object"},
+            "a": {"type": "array"},
+            "h": {"type": "number"},
+            "i": {"type": "number"}
+          }
+        }
+      }
+    }
+  ],
+  "messages": [
+    {"role": "user", "content": "Record the sample values."},
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_1",
+          "type": "function",
+          "function": {
+            "name": "record_values",
+            "arguments": "{\"n\": 3, \"f\": 0.5, \"g\": 1.0, \"e\": 1e-07, \"b\": true, \"z\": null, \"o\": {\"k\": [1, \"x\"], \"p\": 1.23456789, \"q\": 1234567.0}, \"a\": [1, 2.5, \"s\", 1.23456789, 1234567.0], \"h\": 1.23456789, \"i\": 1234567.0}"
+          }
+        }
+      ]
+    },
+    {"role": "tool", "tool_call_id": "call_1", "content": "Recorded."}
+  ]
+}

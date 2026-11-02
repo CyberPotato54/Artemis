@@ -1,0 +1,276 @@
+{
+  "format": "artemis-golden-1",
+  "about": "Test 3's golden set. Prompt text is written for Artemis (MIT OR Apache-2.0) except the sources below. Built by tools/py/build_golden_set.py.",
+  "n": 256,
+  "sources": [
+    {
+      "id": "rust-1.90.0-core-option.rs",
+      "url": "https://raw.githubusercontent.com/rust-lang/rust/1.90.0/library/core/src/option.rs",
+      "license": "MIT OR Apache-2.0 (The Rust Project Developers)",
+      "kind": "code",
+      "pinned": true,
+      "sha256": "53b549b18552144e911416aa2773e8b726da88c190d5cb27007c3c08740894a5",
+      "used": "all of it, in prompt 20-long-option-rs",
+      "path": "golden/sources/rust-1.90.0-core-option.rs"
+    }
+  ],
+  "prompts": [
+    {"id": "01-code", "category": "code", "text_from": "test2/inputs/01-code.txt"},
+    {"id": "02-prose", "category": "prose", "text_from": "test2/inputs/02-prose.txt"},
+    {"id": "03-chat", "category": "tool use", "text_from": "test2/inputs/03-chat.txt"},
+    {"id": "04-multilingual", "category": "multilingual", "text_from": "test2/inputs/04-multilingual.txt"},
+    {
+      "id": "05-code-write-lru",
+      "category": "code",
+      "enable_thinking": false,
+      "messages": [
+        {"role": "user", "content": "Write a Python class `LRUCache` with `get(key)` and `put(key, value)` methods that both run in O(1) time. Use `collections.OrderedDict`. The constructor takes a `capacity`; when the cache is full, `put` evicts the least recently used entry, and `get` returns -1 for a missing key. Add a short usage example at the end."}
+      ]
+    },
+    {
+      "id": "06-code-write-sql",
+      "category": "code",
+      "enable_thinking": true,
+      "messages": [
+        {"role": "user", "content": "I have two PostgreSQL tables:\n\n```sql\ncustomers(id bigint primary key, name text, country text)\norders(id bigint primary key, customer_id bigint references customers(id), total numeric(10,2), created_at timestamptz)\n```\n\nWrite a query that returns, for each country, the three customers who spent the most in 2025, with their total spend and their rank within the country. Customers with the same total should share a rank."}
+      ]
+    },
+    {
+      "id": "07-code-write-ts",
+      "category": "code",
+      "enable_thinking": false,
+      "messages": [
+        {"role": "user", "content": "Write a TypeScript function `debounce` that takes a function and a delay in milliseconds and returns a debounced version of it. The returned function must keep the original parameter types, and it must have a `cancel()` method that drops a pending call. Add a JSDoc comment and a two-line example."}
+      ]
+    },
+    {
+      "id": "08-code-edit-bugfix",
+      "category": "code",
+      "enable_thinking": true,
+      "messages": [
+        {"role": "user", "content": "This binary search sometimes never returns. Find the bug, explain it in one or two sentences, and give the corrected function.\n\n```python\ndef find(xs, target):\n    lo, hi = 0, len(xs) - 1\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if xs[mid] < target:\n            lo = mid\n        else:\n            hi = mid\n    return lo if xs and xs[lo] == target else -1\n```"}
+      ]
+    },
+    {
+      "id": "09-code-edit-refactor",
+      "category": "code",
+      "enable_thinking": false,
+      "messages": [
+        {"role": "user", "content": "Refactor this Node.js function to use async/await with `fs/promises` instead of callbacks. Keep the behaviour the same, including the error handling.\n\n```js\nconst fs = require('fs');\n\nfunction loadConfig(path, callback) {\n  fs.readFile(path, 'utf8', (err, text) => {\n    if (err) {\n      if (err.code === 'ENOENT') return callback(null, {});\n      return callback(err);\n    }\n    let config;\n    try {\n      config = JSON.parse(text);\n    } catch (e) {\n      return callback(new Error(`bad JSON in ${path}: ${e.message}`));\n    }\n    fs.stat(path, (err, st) => {\n      if (err) return callback(err);\n      config.loadedAt = st.mtime;\n      callback(null, config);\n    });\n  });\n}\n```"}
+      ]
+    },
+    {
+      "id": "10-code-explain-regex",
+      "category": "code",
+      "enable_thinking": true,
+      "messages": [
+        {"role": "user", "content": "Explain what this regular expression accepts, piece by piece, then give two strings it accepts and two it rejects:\n\n```\n^(?=.*[A-Z])(?=.*\\d)(?!.*\\s)[A-Za-z\\d@$!%*?&]{8,64}$\n```"}
+      ]
+    },
+    {
+      "id": "11-code-explain-rust",
+      "category": "code",
+      "enable_thinking": false,
+      "messages": [
+        {"role": "user", "content": "What does this Rust function do, and why does it need the lifetime `'a`? Keep it short.\n\n```rust\nfn longest_word<'a>(text: &'a str) -> Option<&'a str> {\n    text.split_whitespace()\n        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))\n        .filter(|w| !w.is_empty())\n        .max_by_key(|w| w.chars().count())\n}\n```"}
+      ]
+    },
+    {
+      "id": "12-prose-story",
+      "category": "prose",
+      "enable_thinking": true,
+      "messages": [
+        {"role": "user", "content": "Write a short story, about 300 words, about a cartographer who discovers that one of the islands on her finest map does not exist. End it with a line of dialogue."}
+      ]
+    },
+    {
+      "id": "13-prose-email",
+      "category": "prose",
+      "enable_thinking": false,
+      "messages": [
+        {"role": "user", "content": "Write a polite but firm email to my landlord. The kitchen tap has been dripping for two weeks; I reported it on the 3rd and nobody has come. Ask for a repair date this week. Keep it under 150 words and sign it as Sam."}
+      ]
+    },
+    {
+      "id": "14-prose-summary",
+      "category": "prose",
+      "enable_thinking": true,
+      "messages": [
+        {"role": "user", "content": "Summarize this passage in three sentences for a general reader.\n\nFor most of history, a lighthouse was a fire on a tower. Wood, coal and later oil lamps burned in the open or behind glass, and most of their light went everywhere except out to sea. Mirrors helped: by the late eighteenth century, polished metal reflectors shaped as parabolas gathered the light of an oil lamp into a beam. But the reflectors tarnished, and even a clean one lost about half its light. In 1822 the French physicist Augustin Fresnel proposed a lens built from concentric rings of glass prisms. Each ring bent the light by a different angle, so together they acted like one large curved lens at a fraction of its weight and thickness. The first Fresnel lens was lit at the Cordouan lighthouse in 1823, and its beam could be seen more than twenty miles away. Within fifty years the design had spread to coasts around the world. Lenses were graded by size into orders, from the first order, taller than a person, to the small sixth order used in harbours. Many of them are still in place today, although electric lamps and automatic controls replaced the keepers who once trimmed the wicks every night."}
+      ]
+    },
+    {
+      "id": "15-prose-explain",
+      "category": "prose",
+      "enable_thinking": false,
+      "messages": [
+        {"role": "user", "content": "Explain to a curious 12-year-old why the sky is blue during the day but red and orange at sunset. Use one everyday comparison and no equations."}
+      ]
+    },
+    {
+      "id": "16-tool-weather",
+      "category": "tool use",
+      "enable_thinking": true,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_current_weather",
+            "description": "Get the current weather in a city.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {"type": "string", "description": "The city name, for example Paris"},
+                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"], "description": "The temperature unit"}
+              },
+              "required": ["city"]
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "get_forecast",
+            "description": "Get the daily weather forecast for a city.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {"type": "string", "description": "The city name"},
+                "days": {"type": "integer", "description": "How many days ahead, from 1 to 7"}
+              },
+              "required": ["city", "days"]
+            }
+          }
+        }
+      ],
+      "messages": [
+        {"role": "user", "content": "Is it warmer in Lisbon or in Madrid right now? Answer in Celsius."}
+      ]
+    },
+    {
+      "id": "17-tool-result",
+      "category": "tool use",
+      "enable_thinking": false,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "search_files",
+            "description": "Search the repository for lines matching a pattern. Returns path:line: text for each match.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "pattern": {"type": "string", "description": "A regular expression"},
+                "path": {"type": "string", "description": "The directory to search"}
+              },
+              "required": ["pattern"]
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "description": "Read a file from the repository.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "path": {"type": "string", "description": "The file's path"}
+              },
+              "required": ["path"]
+            }
+          }
+        }
+      ],
+      "messages": [
+        {"role": "user", "content": "Find the TODO comments under src/ and tell me which one looks most urgent, and why."},
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {"id": "call_1", "type": "function", "function": {"name": "search_files", "arguments": "{\"pattern\": \"TODO\", \"path\": \"src\"}"}}
+          ]
+        },
+        {"role": "tool", "tool_call_id": "call_1", "content": "src/net/retry.rs:41:    // TODO: cap the backoff; it grows without limit after 30 failures\nsrc/net/retry.rs:88:    // TODO: log the final error before giving up\nsrc/ui/theme.rs:12: // TODO: dark mode colours are hard-coded\nsrc/db/pool.rs:203:        // TODO: connections leak if the health check panics\nsrc/main.rs:7: // TODO: remove the debug flag before release"}
+      ]
+    },
+    {
+      "id": "18-tool-multi",
+      "category": "tool use",
+      "enable_thinking": true,
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "run_shell",
+            "description": "Run a shell command in the repository and return its exit code, stdout and stderr.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "command": {"type": "string", "description": "The command line"},
+                "timeout_s": {"type": "integer", "description": "Seconds before the command is killed; default 120"}
+              },
+              "required": ["command"]
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "description": "Read a file from the repository.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "path": {"type": "string", "description": "The file's path"}
+              },
+              "required": ["path"]
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "write_file",
+            "description": "Replace a file's contents.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "path": {"type": "string", "description": "The file's path"},
+                "content": {"type": "string", "description": "The new contents"}
+              },
+              "required": ["path", "content"]
+            }
+          }
+        }
+      ],
+      "messages": [
+        {"role": "system", "content": "You are a coding agent working in a Rust repository at /work/parser. Use the tools to inspect and change files. Make the smallest change that fixes the problem."},
+        {"role": "user", "content": "`cargo test` has failed since my last commit. Find out why and fix it."}
+      ]
+    },
+    {
+      "id": "19-multilingual-ja",
+      "category": "multilingual",
+      "enable_thinking": true,
+      "messages": [
+        {"role": "user", "content": "Pythonで、リストから重複を取り除きつつ元の順序を保つ方法を教えてください。短いコード例と、その仕組みの説明をお願いします。"}
+      ]
+    },
+    {
+      "id": "20-long-option-rs",
+      "category": "long",
+      "enable_thinking": false,
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {"text": "Here is a Rust source file.\n\n```rust\n"},
+            {"file": "golden/sources/rust-1.90.0-core-option.rs"},
+            {"text": "```\n\nIt is `core::option` from Rust 1.90.0. List every method of `Option<T>` in it that takes `self` by value and returns an `Option` holding a different type, with a one-line description of each."}
+          ]
+        }
+      ]
+    }
+  ]
+}

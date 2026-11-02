@@ -1,0 +1,2557 @@
+# Every committed test-data file: how it was made, its license and its sha256. See README.md and THIRD-PARTY-NOTICES.md.
+
+[[file]]
+path = "tokenizer/corpus.txt"
+made = "tools/py/build_tokenizer_corpus.py from the sources below"
+license = "per source, see below"
+sha256 = "635207a43ecb6af6e16409a41fc78e46f68d80afe6bb43b9e4d5ad28a2609cee"
+
+[[file]]
+path = "tokenizer/sources.json"
+made = "tools/py/build_tokenizer_corpus.py"
+license = "MIT OR Apache-2.0"
+sha256 = "a99bbd67d4956ed8af120d05b91e1fa1069c36c1212a31414ac386940b762309"
+
+[[file]]
+path = "tokenizer/corpus.special.ids"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "9b0f33c44be172099cb314414b6ff4c8af9e5a67dca7d5ddecd176096e06aa51"
+
+[[file]]
+path = "tokenizer/corpus.plain.ids"
+made = "artemis-oracle (llama.cpp b11509) tokenize --no-parse-special"
+license = "MIT OR Apache-2.0"
+sha256 = "6da7d01c8eac9080a18f966c97a4f77d023822d6c8eb7efa8cd7cff70b0cd2ff"
+
+[[file]]
+path = "tokenizer/qwen36-vocab.bin"
+made = "artemis extract-vocab from Qwen3.6-35B-A3B-UD-Q4_K_M.gguf (sha256 0b21525e…c58b), Apache-2.0"
+license = "Apache-2.0 (the model's vocabulary)"
+sha256 = "f2d0daceeb491ad8b4bac90a09073b5e682951b6f5c8fe329a3648254f8749d5"
+
+[[file]]
+path = "tokenizer/eog.json"
+made = "artemis-oracle (llama.cpp b11509) vocab"
+license = "MIT OR Apache-2.0"
+sha256 = "04019caabb35f63ac4a63a3ddff0af12c1706d45a030147e11bfad956d1002b0"
+
+[[file]]
+path = "test2/inputs/01-code.txt"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "1ae781c3039e9ca75441e108f21180ecf86f4a32f3124a4c09c30e7cd3541f1a"
+
+[[file]]
+path = "test2/inputs/02-prose.txt"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "487240f4e2f2d3949dd43c23dcca9a2f3ae67cb70219e771b2bb358e0906d231"
+
+[[file]]
+path = "test2/inputs/03-chat.txt"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "f3471738a1df5ec750c5868bcfacddcbefbe34f805d68c664483c0d10a299d25"
+
+[[file]]
+path = "test2/inputs/04-multilingual.txt"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "bc4913a7c6f016a1fb29522aa67b2f27afffaacb90e94ea1ca77396b21008b31"
+
+[[file]]
+path = "test2/inputs/01-code.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "288cabccdd346f350f51954cee87c7305237358cf3710fc60468171ff7fbd5fb"
+
+[[file]]
+path = "test2/inputs/02-prose.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "329bbcceb43a41cefa26ea73b17f30ba860511b627dc2f5d65b261dcf43c3e2f"
+
+[[file]]
+path = "test2/inputs/03-chat.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "ea8180db973e2df3e3c490bad92ac24edd3c5c796858babf7562bfd88c718b07"
+
+[[file]]
+path = "test2/inputs/04-multilingual.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "f7d07b97e131bfdfaf779a2f668290c95e4be7a9d7175ce9a159a39860e1ba16"
+
+[[file]]
+path = "test2/tiny/input.tokens"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ba5975107933fd747228b0790241ec69f872ed710c37101b8043c7bb278468ee"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00000.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "28711dae503eea60fe664f0d95f6d19801a459419b9f1d64983085d2786df721"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00001.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5aa2b0844151a942de80b63712cf00f5c67caa6e8717defa3506f4d85886fd0e"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00002.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "44766d9a509c053eb86e59a74e144cdbdcbf64eb698f5cd5e43398fb09acbde3"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00003.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "9068072c9aa6ed8b8a9ff3d965a5cfd0c4de9382fcd9d95dcd5d55d2ce0f404a"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00004.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "70f1e2c201d9cf181805cf8a1d4ae9b148d37d7f51bdcb8aedb259076aed954b"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00005.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ec78b43d6aa275a3d732a73e4e564f43c42635be774f1cbc8df67b26b12563e4"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00006.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "e169969d2762a003109ace10af98a393631e277519f73363d4465f42e0fbbb33"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00007.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "b84cefb18d3066198d8315a4689f4ea98a4325ed4069150dcb4c7caf12df4a11"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00008.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a2f0193f26e158a0532b873a5a58fbf52968258c195e8390c0a1700d59a98c39"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00009.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5272cbcaabf839e3414bd3789afbbb21a8b9f02e162dbaa95305f6574bc31ba0"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00010.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "8f77de3ccbd8b03e3d23684c59058135af0a07572e6b1e16c95e2ab8f4119b41"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00011.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "7fbb873bcf39a8eb23f9934adc1b00017100b9de8097286bf38eea0a786a62c8"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00012.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "1282fd7b62a2e023c3c455dfad0c4c520cbb3d13b48937f8b8867d4ca1c7c8c1"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00013.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "e8526759c03aaef7c82d71e13a8d58b41c881b2928d64393371e28a53afca036"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00014.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "97f3373b7cdb5f5f820ca7230c5f8bacca886cb9683af0afbcdab8b15a569399"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00015.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "119aa57ddc6b77fd34fb97c80b78d7b8f66f2e3cbeb220acc15a4622f8c99104"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00016.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "b199f33f4bac56bdc69fffc0d7400645f593b78afd8bbb30882534da823b7132"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00017.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "beccdd5a0118193f8b4c1c8c9433d0f98a2dfb33a798a0907fd6725d9d135b41"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00018.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f62c99d88274080e383a61b013e8f36cee0e3b1602e42d6ed4089357703784b7"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00019.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ec76c14dd99beaec0f06ad3672a8e9bfe697152cfb8a19b24fa0f3263ce187d9"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00020.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5ad6b65ad3e9a63be3db39e6275323f8eb3bba3b8440770ca5a734f3200850ad"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00021.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "0c1a78385115874267c94ab01baa9aa1b939a7d2fb71e770d43f5aed681040b5"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00022.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "09a9e30e43f161bf9e401ddf19340c553c4142170f717763ed99fed177f61392"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00023.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "6cc06d349377712fa1b9846460e7d287b0549238c43e0d59b009e94de820a67e"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00024.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f1490dfb8fcc3e43a7c08aef607eb908c66a27e1654d51147d463b5c545e95c3"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00025.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "af948fbb4a16cfdf8469f77c43200c4589600c15edf718e81a036acfc2430ee7"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00026.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "bd4c33d745e6b0066f3b54e402df868020b3e2f785883be9379996cc3dbd8f98"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00027.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "bc1c53e458f55048d4a085fd2f329123b50417d409b85bf8daa9f9734dd0a8c8"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00028.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "b46abc146a423bf0841dcfefa94a929cb82b868af02b9c104d9942e6771cc9f0"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00029.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "acd34136388f022a9ed9a8fa2016a9e0287164813a015da7cbdc07b773d9bba7"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00030.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "bdd9c47dd319061c3432d2994de87e527bf2d72f9b73f31b17a43f4483f92393"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00031.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f27506a94ee2ed545a8ea5f0b5eb5e39f9449f2ce63fee1a57b45714d8900c54"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00032.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "3eaae8f85de35fde43a27441a530e29a54f6f0f3bad1e062bc84c4f641dcb3d1"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00033.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "3e9ea129cf550c71217b8ebcc318ecea053a60968344717c6d5df4f3c7e25ffe"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00034.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "4d216eed6b7dceabcbcd7cbbf300aba6d66f6d5658230de95b99b53dbc8854a4"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00035.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "6f8c205521a21ed47ccf954af13cbdf5f90572c194ed0843876c5993f8fc8d83"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00036.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "eaf2624272bd951455d47151f4f4a4468df4fb367b3024a9bda9b0d5bd05f1a3"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00037.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "7afb02edfe16922402267fc5eeceb1507300679089995c74a3b024ec828062a7"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00038.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "80cac6e14098260a09ae99eb6084d0e69eb8c9cc11be32853972d77a7e4b9de3"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00039.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "231d5b093f1ad4481d93e459ba168921a2a13f0925290cc67cabc817da2531b3"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00040.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d5fe783eb6eccc945fec0b047c72f2ae4f8496bfca9ea0c50b4707ebfdff4fd9"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00041.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c606bbf601783b0a6bdd9d3ebfe40e35a6e3e0543cd6b4d36f129a255b5351c3"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00042.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c5c1b4ca09eb1c8360a7a41223b9b361ff7275be827c36d5ae8d9ce7d4575d88"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00043.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "e75d30c6d1146b11f7ea50bd3e35cde77972b8e6c1ac616ea5cc3f436e2e0675"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00044.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ae333e7289037c3b6aa1abd9bf46dcd506475af2c87c89483b3e8bc1f8f007ea"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00045.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "558dce780f2f2413ecbe0a25b2f998cbf7be9349981f5c0d24ce971a960ce467"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00046.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ee8e63ea75abacee19f5b6637c5b962c6d0a246f4d594dacb243fcf05c74b410"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00047.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "150769a03f095f8ccb01af12112a3c80693ed96f4bbff94f2bd938de9eef689e"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00048.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "826dee2188576c5c968fa7b457af00c57589a0020dd5fa1ef6a3e4b2a4ca9096"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00049.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c1f55377ee96ff19e60eb164ebe13be8411a902460422eed4768e71dd88f4f3e"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00050.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5db580db5f8b58d8e7cb736b48cfaf39ea687d21b6bfc235d94dde71bb4af8de"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00051.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a946cd01203331329d3b0bd06c57da89f3a4f1ca93c305486c8bbb145ce75ab0"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00052.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "365bcf6080e58e9dae5fe6841811da5e4d8639477b8b1bf876245fa3404027f4"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00053.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "bf844bc426519fe91c2cfebdeef3108a27b27a39a78c582860463d5795743033"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00054.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5e4e5d6adad204ec934148c2ff6ae56e41602813b14bdc44779f86aceed2fda2"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00055.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "20a4b9271ea2b1a4cf258080b28150aba84d3439906690ac772edc89c4b7bcf4"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00056.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "6857289ba307c022655b85b12d9a2071c2258f0d291a83734e1b92c91f5e62cd"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00057.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "b24d9a1ca96a714abd24acf72b7afcb020b7e2ce9358bd3857b5d9bec05a63db"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00058.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "375efaf81d4780a72c93e3e85af656805a238c197f87b2862f88cd1ecc719363"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00059.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f604b62a7bc2139702a2a7a41500488a2eb54364cffb216ef5ebfee53f132f1f"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00060.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a2dbad6a0a66bd9ba2ddce2e5fd5d0da974a61030175ac6483ca4fe80aa99b8c"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00061.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5db0089b325b1786493b23a2e7d3bbeea20b8664f946dd0083a5ae6d73d1f3ad"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00062.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "762528b7e6b67fd55e8edb14c324a4d80eb5ec7da68ca5b6b1983e60fdd43a45"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00063.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f737a06cb103862fcb736940ace614bc6661b449868bfe9c6931e249b439eb04"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00064.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "b7916937b680aae3e6e391a0891496d65afbb25928beca65683a37162ea9bbb7"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00065.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d19898feb7f6515eb811797df715bb521fcbb8c1f133da55e0b7e64c554fc5af"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00066.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c65605df0f0c91d1985842d8dec743344c29bd07617279675cafaf64a1a7e083"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00067.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "0e76c3c91fa50867e0d6178e505edaaf7afb2e6415dbf300a5ff6776ba8c84fe"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00068.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "e70c9681f66c8aacf8bb0b86a89d75babda7c84786be1404d3e7ee3d30187c5c"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00069.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "8400ac86e3d6c2fce821c63a10acc20c98a05cc8f4e9f1dc5f43e33fd722dba1"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00070.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "b6a498a4d4aee845b69c9dd56b2a6c691fb0c9e9f97985eb8af76e985a35a7b7"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00071.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "dc7fcde6456b656833965dd61a4d2c9ae226e8edc0b8949c543e735a37d7fc8f"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00072.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "46357fa0b2796149fb52f3a778b5a807cafcec7ed160f8ebfa6c1e60a2fe5ea9"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00073.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a3af55d0dfc5a7670a04c852bc1b476059c83331cd67f1b17dd44a214a2aabb2"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00074.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "682639d7f64d8fd757fc6eea575c8614b3d62c32fe169aadb727514c3faae00d"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00075.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "547ff5ad894c136c95bc8595c5747f573727a26fb6af5da59a33f68b6b5cabe2"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00076.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "547ff5ad894c136c95bc8595c5747f573727a26fb6af5da59a33f68b6b5cabe2"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00077.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "7c457d6e667a8dd9e4a4d66cf6bfa6444fe748bf03cc8d80b228cc3974d1b9bf"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00078.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "1d717a84af056593e069a4f180ed125b39c1e5ee96ce93199ec030d1f6a9aa97"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00079.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "b79ea15601400a9ff71c4d318c111ceb465546049e7b71be754bf536aef4436c"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00080.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "078584f35ee727a6b3d41bd98e3d8d87e58784387aa5125705c2bf76929fb6a5"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00081.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "30b7f7f504936a9c72cc92a54e817acab4ffe2d31eef21c4de4b4b339fb95a09"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00082.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "8c57ab9aef1584a6be97f6649a3c88303c8bcd1bb1c59cbbc19bc5b0c86472a3"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00083.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c5ea61e86c281f64dfdd0ca50c940bfacc606d5dcf88fcbc37bce26829fcf748"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00084.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "bcc9cda254d4cfde3a3845211e9c126564adb49c0dfb72c59426af2604cb69de"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00085.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ea8a02cb85185d92333a5a1dc68181d5ce5d77ce910ece275f44e5da00a333b1"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00086.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "6fbc7e80ccd073bf75a8452db55a777468217242962eab55491a2206af89f2b5"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00087.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "2eb78724d0c985c2ce32ecc3d6a1e8520710238ada5fa59f357fe45b73624f48"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00088.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "0619f559869a6d98081c02892517d66707eba0349b2131b8d981afa5544b5868"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00089.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "4c86aa8c41a8e6b2dd2c0921e096f2feff193e7848335a0f0cb94eb58427006b"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00090.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d845498be930d09b2be6ac8fab3788a0d0a971bf6cabffe7415493763f459336"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00091.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "81ca3181b115c094188eaec9863453e693194f76f1b6068b9a6fbde9ed3a5da3"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00092.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "7f353682ae06c6754bf8818098c1e594a16ec5325063db3a1f4b3067be8596c1"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00093.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "347c4e0781ebc001f9e707913393300e03d814c308fac3eb0c20e11ebea975fc"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00094.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "cbf270160d0671f85262da7daecba36a3cf9bc8da8ccebddc1510aaa15781fe0"
+
+[[file]]
+path = "test2/tiny/llama-cpu/00095.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "4fb30dcbf0c3313441ae264f8ea1ca74624a2e76253e38dc9de2a124d084bb02"
+
+[[file]]
+path = "test2/tiny/llama-cpu/index.json"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d2445ea035bebe0858a641a874280971e2f56d1e11ce795b781787e551ff8e97"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00000.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "28711dae503eea60fe664f0d95f6d19801a459419b9f1d64983085d2786df721"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00001.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5cbe0ba106be29f3de8ae463d2d72a22db37cd45175e625bcd889f91be844ded"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00002.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ee671ce0f2fdf8e5bbd9ac77e06f58a7fc3efcb5673473f68216ec7f607bece9"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00003.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "e05a3e6f2fdfc59299763d918b8810d6ebf4ac465f1f51d3f71e0e78da4928ce"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00004.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "033c20966cbcaaf8108b7ab86e12c154c7b4f82874f26bd380361eea38d21cae"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00005.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a526ddf33a48aff76e003e2091f25b459c9444743e5828c2f6f6a64a750dac5f"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00006.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "1264ca446c7abdfa81444cb54474325a58a19e357572a6580a0f255f1d7f7f44"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00007.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d211394d45e57cfd03364af3897861e2b8d0a5e8428ddb9489c3e939baa0af13"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00008.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "3d648b0c1387d999e4d2a4b012281ce60ae87d1e2010ce02fba9019ca8a8df4c"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00009.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "e75602a908af1d6ee02bc768f6d6993ac8759e0746f6bbcc153296c048ff42bc"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00010.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c03705be07c572f843d22ed09c72fd5e69e1590eff99041d4402f846fae1002c"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00011.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "b08599bb0f5b0bd8b8f22d413c72c28c90bbfe0466f3fd802a97a91734e4b2f4"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00012.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "92371d2b4452d934e7b81f8278cb365da38d2f5b7681fa2586dd97187f2edeb5"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00013.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "dd8b6d4d8864ad612d889b02077b344568e73061637f37ddc9ef61ba5d6f6852"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00014.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "996f70f98794a886301adf06ceecf3db29370e6d334a8e68d8e4592e475056f4"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00015.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d8fbd3cb758e190ed01375ba4351703c91e4b32ca96d823b01a8359d9207ee9e"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00016.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "70c739c9b50af3f4a3d120505fd1ee07cc7f4d2562d5ee1072c8aa75e9c2b5dd"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00017.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "beccdd5a0118193f8b4c1c8c9433d0f98a2dfb33a798a0907fd6725d9d135b41"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00018.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "aae6908d7dbe19da9532a75cea1e1e95e2e7a2e51aacfc6de849201acc0ce52f"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00019.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ff1493ae2ac23af180b0caa10452a0e78392c9b1550475b84171cecb77957c1d"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00020.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "2ea5b454ff5f02e5ae25bf16e5f61b18b77573b4c7f0b2acf5ffd34673da8f78"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00021.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "63f22efe8539f4448291c1079fb20e298a319181539a0ec89aaacebdb785e35d"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00022.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "de61b36a9be11d9d856d2da3e9dcdf003dcf243d42f42cbc86b3351a130a2caf"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00023.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "8318bab284ad7fb62357e3db1fae6f9f23356a7c662d10076a5964274dfcfebd"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00024.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "b827408f2908df70bb7bf4ba65d847a514dd0d05ced6ca15b9de7b05f69326f6"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00025.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ffeb71a0aa69970e822136aaeb43f8eee1aacb2ec5bc19bd24713bbe8729ced4"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00026.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f44a57a546d9ce03bada11f19c32315db80bb186ba6a7fb59299a97be7352b40"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00027.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "2f68c88c500a3939528d5a193f8502981a5107bbd3217355a17feccd957a5b9a"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00028.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ef91d40282ded3aaf545fad6f99e60f31f8b8c8bc8192a843f704a7aba642048"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00029.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d6181242da6a6cdb0ab2f753c2bd2225d41803d29868aecebc82b0ef21d43793"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00030.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a2648379c7cb63d7a2c90159d3d99190e73d1aeded6747cad18799b055a64fc0"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00031.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "7da46761e5ad8c2c759682b5754cd4e723d5c51bee14fc968f4ac2f739bd9a92"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00032.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "074932db5cc68f701e88fa9938ce76a33b836589944bd1f21ed98a5f0d386724"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00033.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c9f48652858ec501dd46117189fb4aad06c4298e3eb66f31fad34005c016a132"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00034.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d6e50c0e933cfb182e4668d37300912dfd20df603aa3a49255f9c3cf1c6741db"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00035.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f84340652cab80e470276e4f670146ae7021fd0322f554805565a1384a58e364"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00036.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "035511f0891b451078636946e578431f9f28061c0a11d535800ce3be4d5481a5"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00037.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c266953ca3b5c32fe484698048e64170882e79fc306c6361ab62ee2793522668"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00038.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "7a5d0f9aed7c3d71ea9b5d8f10fba85d793bec55cd88ce4433d5fbeaf545f49c"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00039.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "aa089abcb8163e5f50e65c5408fd3133130ec5dff80d4e7de554599c85dc051b"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00040.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f2f994e0a28e08482dd21b6c8156ea242aefd633a675b1d397bfdce2e6393d0c"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00041.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "4a9cc5b1f847205b0efd7d3b4786e246e07b838108c99638181d4c66aaa79edc"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00042.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "457df457d3c34617d76d6971bcc5a835b88bf2a0612fe687ebb3300ff896713b"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00043.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "60b4528176378bdbe8fa150c2651d19bfc4b3d583cc798cbd079da906643108f"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00044.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "4668bcbbd8e37cc976a6db2d5f60637769a94b8e307ad3905a43a9aa8258a6d8"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00045.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "8c80c0096532a320ed692d69a794c82537d5585606d72098f0e72c4b191a3e7e"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00046.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5989a95aeb48392e58d58ae3bd03b9bae3db7d97c1061276523bf1cbfcbe54fa"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00047.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "af03b99bb97979662a781f6c62860a1733857ae681fee15d4ddad6d47a95f50d"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00048.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "0a7ca75375bc04cef2bc8657288eec187210f9ad0740d2c85c3d10c5051ebff8"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00049.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "62ad5c5f3f18075a592e7f70b5a53d91e9fb6915aa92a3eb5d72512da7f49b64"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00050.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "2a0bab3da8d449c470812f7994e3c4c9495ad1382e4af0e92aab109a60742a0a"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00051.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "6bcb58578b119f45823e13eaf858a313fceeeb86ce86e83236849535f2c1efca"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00052.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f795315b8602b35a544ee54fdb1e8e0b50bad85d2d7f2213a3873e0cf6a191a4"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00053.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "41d0d643e44c0234d63ccf7f8a7ec17135ec1c81b3122791903b12285f8a3465"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00054.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "3d86a6ebf665d3ec5a502bf5008b6676713c1eb6c71ed79a058f19fb1f60a642"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00055.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5647aafee67c3435f9bbfe09325a8c6adb7183a3c0c97fda186741e6dbc13eab"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00056.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c5573422c594c0a6cbc61104c0fe11ec816c29d3b7a777ff7d16ee51bca77c95"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00057.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "3f53419986536d7375291850e56b715f519ec189c4d7f0826ac35303a4bf2af5"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00058.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "741ede19762478ce8d63fb3bc1fa80f9a2099cf152ba4f0b027a7ef0339d2fae"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00059.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "2f51587e990c87a60e0082012a465b46e56dcde4cc6e69d4c6ad0fe7eb0adb05"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00060.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a09b04295e7ab2ad1fd5efb8d9e75b4abedb08dbe7fca4edcb880d87f6b8a0a5"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00061.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "98346203329a1a6e5414438934845cbb7f526bd9295ae629cab7e5ebfc31d6ab"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00062.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "83a876a6041563082f91db347982c9a03a71c4781134058e6c93c9c23e5b9775"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00063.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "fecef3139e7aa0f1e3ac5728a1a2698383e0b2cb88c8d2f8800275f5b8ab5e16"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00064.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "4748d5072e25b92155742d03c6d8291b208ebeb321bf28fa846583922b2032f7"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00065.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d3448ee7c6a2fd32633b7a04be6db760d1c7ddc6aee24e5f1a812146bf27507f"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00066.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "69bebc18d336d40c5680f08488266664ef272ed708d8cbddfdf021915c452bee"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00067.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "858c25bfc83237913d3fb97d080b15657bbf678f522db7daa4eb68eaf70bcfa5"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00068.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "cacb5c283dc41cbc48d4d3cf8e51fced376152307ecd61f966970811bf05801b"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00069.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a857ef00a5a63b5caa5c539aaadb1f732ba4041c4e0be1e5c6240e5eab4f4334"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00070.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "26426e2010f181e6b5ff77b0075f5d1546549377cfe22969b3dfc10449d72c46"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00071.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f760e33b0b32759017bca33b76a087772af27d7259faf3c98d3976c0f9dfc76a"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00072.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "8bb68cf6225df9085ffed4495b3516a66100b96131ad12721a3ed24629b4046a"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00073.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a68d5bb127dcadb3bcc0fac68b5546a6a67955f95de69b3bf7896f76b1c6c828"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00074.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5183cfd8d3329b026f77af7fecc450680170c042e6405f9cdfa5b3154bf1a4ad"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00075.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "84b6dcabffe8e6984aa70a613cc1cf182d2b5883d39ab2c70770b32cbe8bb20a"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00076.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "5183cfd8d3329b026f77af7fecc450680170c042e6405f9cdfa5b3154bf1a4ad"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00077.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ca7e8533714dcf5cbba0e9dcefa1d7d6f14226f94faca13cda74503f86a88fb7"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00078.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d3fa931eb880ae29bb1234e2133041c67ed28d896f597b6fbb7745c90984779f"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00079.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "327877378961e9ed61e5365eef8094cc4c4e793e4c2eb037737c84fa3a733a8e"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00080.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "a40551ab986e85a78ba21636787f6d89e17e0a0754b25c3d3ed14dc1d369c136"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00081.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "0f1d91b9518662b8f98242563f58bca0fde69f8584f25fbab021bf1e3d1f2611"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00082.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "49037fde4f8b56c414a50b2d67a15076c113d23640d1edcbfc2b96b3cbb59db7"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00083.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "d15d100cda5c8bdc748eb15c19c62e2b62b14b177d6f8e5f978c162e2073f961"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00084.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "6ff5ae052aca7364b1ce295ae3e10c79a096c1d117182d6e1a4ae64c8025f36b"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00085.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "c63eee4b7709b24a07937a84d4ff8195cc242a8d440ee1a7ddff420922bb238d"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00086.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "eb5a056808330fca691dcfa65d71619e2ced4f6cf84f8855d1ac547b2f63e89f"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00087.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "4199be121cc5c5d602d129e2a136139ed855ce1b3d3c47e5215f04d5e71412a5"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00088.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "2da6acb472f5ba1163cdba19caa3f5a614c987dbc1be35fa4b7f62a50099eb0a"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00089.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f868e4f911e30b77e0790ac40980b933a8acdff52f58f850638909887406a8a2"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00090.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "ba191e547b8662084a8dd032bac3e83dc9464c09227754cdbf1f85efefe67ad2"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00091.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "6f5abc03d19775b554006f6544955dc2d7880632ac7835dc46687b615f7dbe3b"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00092.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "f906a4ea37d8a5921c50e28b0365450be7326d1738e1ff20372c0389ae654fe5"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00093.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "28da180a8af336a3288f9ece118857387370dcc6ff1f006a24daaa0760e8a708"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00094.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "309658064eec4659fdd1c82b9e703a3f249e52228a9a3002842ef3bf5141034b"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/00095.bin"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "e1b9d2bf300b707ce1b3789347b4eb0a2d36b2742b87650c2ed47f1b98da81c2"
+
+[[file]]
+path = "test2/tiny/llama-vulkan/index.json"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "90494cacbfb7c4aa5b889994370d4c80f69746c2aaf8f912e8bde689d1900784"
+
+[[file]]
+path = "test2/tiny/model.fnv"
+made = "artemis-oracle (llama.cpp b11509) taps on the tiny model (artemis tiny-model --seed 1)"
+license = "MIT OR Apache-2.0"
+sha256 = "53f126b5588750208ba879a6e6ee4a1861a807a7c851d70c9d3a68a0cea02f6c"
+
+[[file]]
+path = "golden/prompts.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "992196747970cbd296e4e1e0aea86609ea30221cf47bb14ba90f12f1679ceb55"
+
+[[file]]
+path = "golden/sources/rust-1.90.0-core-option.rs"
+made = "tools/py/build_golden_set.py, fetched at the pinned revision below"
+license = "MIT OR Apache-2.0 (The Rust Project Developers)"
+sha256 = "53b549b18552144e911416aa2773e8b726da88c190d5cb27007c3c08740894a5"
+
+[[file]]
+path = "golden/made-from.json"
+made = "tools/py/build_golden_set.py: FNV-1a 64 of the files each output was made from"
+license = "MIT OR Apache-2.0"
+sha256 = "193752acdc0379ea66f7f9341c17f43141eea9b9817753e3be37f4a3af437042"
+
+[[file]]
+path = "golden/prompts/01-code.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "1ae781c3039e9ca75441e108f21180ecf86f4a32f3124a4c09c30e7cd3541f1a"
+
+[[file]]
+path = "golden/prompts/02-prose.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "487240f4e2f2d3949dd43c23dcca9a2f3ae67cb70219e771b2bb358e0906d231"
+
+[[file]]
+path = "golden/prompts/03-chat.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "f3471738a1df5ec750c5868bcfacddcbefbe34f805d68c664483c0d10a299d25"
+
+[[file]]
+path = "golden/prompts/04-multilingual.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "bc4913a7c6f016a1fb29522aa67b2f27afffaacb90e94ea1ca77396b21008b31"
+
+[[file]]
+path = "golden/prompts/05-code-write-lru.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "5a8cfd46c1236cb5c7e60bc8f0373fe139eedfe092d329d9e038432cea82e888"
+
+[[file]]
+path = "golden/prompts/06-code-write-sql.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "0dc81f5331eb6e91d639ea1e72521e148457ed99fd23838321fd02723ad9fb22"
+
+[[file]]
+path = "golden/prompts/07-code-write-ts.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "5c219406327d45eeb84ba43bdf0d239343fbc04979d0ccdbbc578e866bee16f6"
+
+[[file]]
+path = "golden/prompts/08-code-edit-bugfix.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "1287001c66ebb54f3bb2e070f94643f5e57b4527abff989a1ed570ce4d2e04f8"
+
+[[file]]
+path = "golden/prompts/09-code-edit-refactor.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "7797f882b591522f668ba0a79977558e0c4592c04ac94420e3114ed18f930524"
+
+[[file]]
+path = "golden/prompts/10-code-explain-regex.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "40884e00ca87c4de1dc378a7f505a055df6ae8f984859512f488472e0ce61506"
+
+[[file]]
+path = "golden/prompts/11-code-explain-rust.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "68e254e0159cb05d91384711800c5e53a1b243a730fab37f8663456a7e06e7e3"
+
+[[file]]
+path = "golden/prompts/12-prose-story.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "46219a796af1aafce123abef387bd4e825fab414c77dcd77ca2ba5bed6610653"
+
+[[file]]
+path = "golden/prompts/13-prose-email.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "8e586f553154babf45dda48b3157fc812e484ace7d6b32204f3b9f749d57eb8d"
+
+[[file]]
+path = "golden/prompts/14-prose-summary.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "df28054a30531f0de782e35cf061a1a1fecb0a142513c133f7f256f3581da0b1"
+
+[[file]]
+path = "golden/prompts/15-prose-explain.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "57031e7a47cec4cef0600a799c747099e012c641c1277e3eae185b344976a9b9"
+
+[[file]]
+path = "golden/prompts/16-tool-weather.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "9213ea571222a5aba720bcaae10e9338f3022327681a530a3f8b2b49d9dcb21b"
+
+[[file]]
+path = "golden/prompts/17-tool-result.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "e4e9fb3afdde4bd24b1d1a85204c3579a74112dd7a3a9e21671d64dbdd6f83f4"
+
+[[file]]
+path = "golden/prompts/18-tool-multi.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "f005add84b86763520ff901267b5f8074fdf701ccf2c4b700b24eb179f4fae2c"
+
+[[file]]
+path = "golden/prompts/19-multilingual-ja.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "8d90911368bee15fb54b0cd76ea4638238538794c15c76bbeb2c7bcbad570e86"
+
+[[file]]
+path = "golden/prompts/20-long-option-rs.txt"
+made = "tools/py/build_golden_set.py: test 2's inputs verbatim, chat prompts rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0; 20-long-option-rs quotes rust-lang/rust's option.rs (MIT OR Apache-2.0)"
+sha256 = "cdf9c1e55d35f114bfa0049af84e99fc8ab45662ceb447990c5a90edd4b0f8d9"
+
+[[file]]
+path = "golden/prompts/01-code.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "288cabccdd346f350f51954cee87c7305237358cf3710fc60468171ff7fbd5fb"
+
+[[file]]
+path = "golden/prompts/02-prose.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "329bbcceb43a41cefa26ea73b17f30ba860511b627dc2f5d65b261dcf43c3e2f"
+
+[[file]]
+path = "golden/prompts/03-chat.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "ea8180db973e2df3e3c490bad92ac24edd3c5c796858babf7562bfd88c718b07"
+
+[[file]]
+path = "golden/prompts/04-multilingual.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "f7d07b97e131bfdfaf779a2f668290c95e4be7a9d7175ce9a159a39860e1ba16"
+
+[[file]]
+path = "golden/prompts/05-code-write-lru.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "a1edcaad2cf6d9a8f93a74b44774965721fe98db859669b8fc8fec5d09bcb16d"
+
+[[file]]
+path = "golden/prompts/06-code-write-sql.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "85808b9497ae420344eaae4a4d187d429dbe5e13841a99d01fa2d27052be873a"
+
+[[file]]
+path = "golden/prompts/07-code-write-ts.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "c20dd4d26d6671034195fda7de681e2642bb77c4a4eb69b1f6b1611fabb07f4c"
+
+[[file]]
+path = "golden/prompts/08-code-edit-bugfix.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "32cdc39e02451d63200c997eddda2cc91ad7dfc8b3dd5c446b4c629ca04bf1fc"
+
+[[file]]
+path = "golden/prompts/09-code-edit-refactor.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "80edc9b76a40227cc2aa0d791f82e40f46958edb42a1d6c7e8a280ff41f3fc34"
+
+[[file]]
+path = "golden/prompts/10-code-explain-regex.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "2aaf6a7d09c43fe9c04a07fbd2948ebb14aff1056ce2770f6812d49fcc1d964a"
+
+[[file]]
+path = "golden/prompts/11-code-explain-rust.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "86a711c3fcbe41e22f8de05091fb540bf912d914f82c3d94d55043cac9a93823"
+
+[[file]]
+path = "golden/prompts/12-prose-story.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "1dd7ec6869f7bea7c12d1a99d1165aaac68617eceb9034f9ca170bc29413865c"
+
+[[file]]
+path = "golden/prompts/13-prose-email.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "00cc3947af8759000febf5a822478538a82943cda5f731f3a5470ccf1304ada8"
+
+[[file]]
+path = "golden/prompts/14-prose-summary.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "333cc09b707cc51e03674af31544ec4a2c878919b09029b8bc45217de04444b8"
+
+[[file]]
+path = "golden/prompts/15-prose-explain.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "d45b14e300557cfea0fc136577d9f506789a129b7535fe6f6387d9b8382db0de"
+
+[[file]]
+path = "golden/prompts/16-tool-weather.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "18f4c1d69ba1dca17f061f00030090bb086eff5455dde791e17811298c340ede"
+
+[[file]]
+path = "golden/prompts/17-tool-result.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "0113779773bd69413a494f335499ff31853100422c989dc2ad738e7ab427ac46"
+
+[[file]]
+path = "golden/prompts/18-tool-multi.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "643812e7983a5328a8941022546206b8a26a9b0d3f06c81b34f0c6631fcdd477"
+
+[[file]]
+path = "golden/prompts/19-multilingual-ja.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "686c583d1770b8c1e3ac9a4d0b31d77d73ae5a96349d7611fab148044e9e3014"
+
+[[file]]
+path = "golden/prompts/20-long-option-rs.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "31a9adfd01e9d144a6330e4621b50128c5fdc97389efc2805692499beec02edd"
+
+[[file]]
+path = "golden/expected/01-code.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "13a12b9876c2daf8615c1ba80f8ca263f04f8c7cfe3af6100e8ec6d1ec1f1b40"
+
+[[file]]
+path = "golden/expected/02-prose.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "6a3d5a9feec9d080085d11d1cef822a472e97d517e43b3c04ef217c912f257d1"
+
+[[file]]
+path = "golden/expected/03-chat.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "860d00514827731863788db44dea989872ae112bfa3103186566758c462fd2ce"
+
+[[file]]
+path = "golden/expected/04-multilingual.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "c5fe385b89b2411e16648b1be1dcfb9b54cbfd8d93d9e0d0ff0df7dbc8ecf5e2"
+
+[[file]]
+path = "golden/expected/05-code-write-lru.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "3a2927eb9e4f3dde80db339dd550369444a9b3c192126d21fc37d7e2ab071713"
+
+[[file]]
+path = "golden/expected/06-code-write-sql.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "b16ea71cac0f3eb6b9cda0fa6161216cbeb012dd4d281d3cea687f3eceb04a7b"
+
+[[file]]
+path = "golden/expected/07-code-write-ts.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "5223b2367ac547a0641f9acff3fa9a299a972d872a9f0fd56cceae3a55650171"
+
+[[file]]
+path = "golden/expected/08-code-edit-bugfix.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "a0b16ba4c1e73af162ae9876dfaba9e152145a9acc1ba50d89b6c7eb7acca383"
+
+[[file]]
+path = "golden/expected/09-code-edit-refactor.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "a6d13eaa9deabc871d3333bf05014f5ad0eb13fd4548728959a90b7ecfe4a410"
+
+[[file]]
+path = "golden/expected/10-code-explain-regex.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "786881f7368b6523fc33f7e9e9034282d75889bf10d646eb6003b29bbbcab377"
+
+[[file]]
+path = "golden/expected/11-code-explain-rust.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "bafaf1e508b65ac7e0b50efce81645c381185f0aa47c6fa986bd74f305d4b139"
+
+[[file]]
+path = "golden/expected/12-prose-story.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "f19f1524e78cb528193b2cc57e1a935722d61e18127dcddbccc8f9f2e101d682"
+
+[[file]]
+path = "golden/expected/13-prose-email.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "e2f002b01cc66eec8be2565bea186c4e0ee61023b053792c65f9307790b25652"
+
+[[file]]
+path = "golden/expected/14-prose-summary.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "bef1a8c920e573db9ee9ae5db26915157aaa07cfb4b41c4ad73a805b5a8a0f89"
+
+[[file]]
+path = "golden/expected/15-prose-explain.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "d2f0e2e5e48dc51815c3c494dd788bee5c6b5d4ce326c387fddb74be72ab822c"
+
+[[file]]
+path = "golden/expected/16-tool-weather.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "0a8f2e37940ca1a2711222ad8ba5616343851af2c833030e681ff56cad3fb3db"
+
+[[file]]
+path = "golden/expected/17-tool-result.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "842bdae71f9238b9371fa244c5dc601d0d710686f6fac002a5895f1f54d71a0c"
+
+[[file]]
+path = "golden/expected/18-tool-multi.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "5b2bce48e1b786884870bc531632124d846694d71d8278f3642f862fe1f1c3b0"
+
+[[file]]
+path = "golden/expected/19-multilingual-ja.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "7aa567ac05d03ce797019722d594d08a16c99ce4ac14519954908f26cb05b246"
+
+[[file]]
+path = "golden/expected/20-long-option-rs.json"
+made = "artemis-oracle (llama.cpp b11509) greedy --backend vulkan --experts-on-cpu --n 256"
+license = "MIT OR Apache-2.0"
+sha256 = "adbc8c1559308d3fa452be22861fd0173b9ac2ca7f4555a08cd4de557ce36bbe"
+
+[[file]]
+path = "golden/forced-cpu/01-code.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "78f91d5df13f4151fd31ccedc4c1263aef9d5a180e1ab130232f2ec4d83adc93"
+
+[[file]]
+path = "golden/forced-cpu/02-prose.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "9bcf2b54940725005daf69e15b2148ae7841e2213ae8239171e32c85cf277a3f"
+
+[[file]]
+path = "golden/forced-cpu/03-chat.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "90424604bc2692e13319e6848983dd7486721476f518f7d9fd3144309e632e44"
+
+[[file]]
+path = "golden/forced-cpu/04-multilingual.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "c20b3ef9a180d3fd7cd91ffc6a1705cbdac6e21900b1aba5f96f7916a87aab98"
+
+[[file]]
+path = "golden/forced-cpu/05-code-write-lru.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "6d634d4c103d175296aed51da8e38e141f9e90e584a3fa3a3531da8fb7f40be7"
+
+[[file]]
+path = "golden/forced-cpu/06-code-write-sql.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "1acd6bbc51a7824522a89063340b48ec443e2e9a9420989263fde128876d53d7"
+
+[[file]]
+path = "golden/forced-cpu/07-code-write-ts.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "95fd0fdacebf8e37be81e04d7abad38b70d7e5ead024185ad7ae2abd84b24dc5"
+
+[[file]]
+path = "golden/forced-cpu/08-code-edit-bugfix.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "8213f3d4e672831e8a24f0d87c60e4234c9f6d435ae349fa2528c8031ea4f814"
+
+[[file]]
+path = "golden/forced-cpu/09-code-edit-refactor.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "d9b123fb0d54bb2382e3624a71d572159e7671813e9a8e55caca9a8f97350ad2"
+
+[[file]]
+path = "golden/forced-cpu/10-code-explain-regex.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "b880fb7a89863d6a52875b84f5ed92d2d1fb508d1fba71bda0db5e0d7a0b3d78"
+
+[[file]]
+path = "golden/forced-cpu/11-code-explain-rust.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "eb373c9b0438eebff5977b6d839e4e1a7cf6be6cf43b843e3f098893a474de25"
+
+[[file]]
+path = "golden/forced-cpu/12-prose-story.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "b398211ba5445033f5a42d0055832c1c8c43329c9b003fa5f34c8da8254cb6af"
+
+[[file]]
+path = "golden/forced-cpu/13-prose-email.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "e5f3e2ea7db224e7f429288d83db4631a8c00f28807e8e7a1d0763bf6f5b0839"
+
+[[file]]
+path = "golden/forced-cpu/14-prose-summary.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "ac6e5e94bc5a9794080e946793d994f047d2f85139282e3ab815760c5c431f76"
+
+[[file]]
+path = "golden/forced-cpu/15-prose-explain.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "95b74cf2f979f146af46c9975c7e0733b10d1edd5fb8daa75e0025ae5892cbb7"
+
+[[file]]
+path = "golden/forced-cpu/16-tool-weather.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "600b5c2c1aee112effe4e4a109ba95ba6b54489eab05ff1dea912e30d3243640"
+
+[[file]]
+path = "golden/forced-cpu/17-tool-result.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "d4420642baac851aa1d40d1da13c319fede1ed7e9095e903bff40f8a8065d22f"
+
+[[file]]
+path = "golden/forced-cpu/18-tool-multi.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "05b9c95bae4345e6db67301b3dff11eb14957f3c5c5d1c1a2d26be8507c82206"
+
+[[file]]
+path = "golden/forced-cpu/19-multilingual-ja.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "a259c42a65b2f7d68d90ca96b916784437c38b15e7a70b00aa55d7d51389870f"
+
+[[file]]
+path = "golden/forced-cpu/20-long-option-rs.json"
+made = "artemis-oracle (llama.cpp b11509) forced --backend cpu --n 256, fed golden/expected's tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "6bc0e8272b61382818949632bc37601a11ec3af38df7ca6190a19f3d048333d9"
+
+[[file]]
+path = "speed/prompts.json"
+made = "written for Artemis from the spike's spec_client.py"
+license = "MIT OR Apache-2.0"
+sha256 = "3a4f421da291a8bd718a12c1de45b0eb9fff4f84af944c55ad7b95502bb63a51"
+
+[[file]]
+path = "speed/prompts/edit.txt"
+made = "tools/py/build_speed_prompts.py: rendered by llama-server b11509's /apply-template"
+license = "PSF-2.0 (the quoted CPython text, see speed/sources/LICENSE-PSF) and MIT OR Apache-2.0 (the rest)"
+sha256 = "b45026c7354124cf89c08ce82670841fbdfb2f266e051bdbf90ad3beb0fd38b6"
+
+[[file]]
+path = "speed/prompts/edit.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0; the ids of a prompt that quotes CPython's encoder.py (PSF-2.0)"
+sha256 = "09ff5fa9b122f39745712d0765c6f2932a28bda854bdd94d6b7f5dd6a2941fdd"
+
+[[file]]
+path = "speed/prompts/explain.txt"
+made = "tools/py/build_speed_prompts.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "b2ea399321f12b26c35fce2f3d0cc44e9eeaa9aa4c5da1ba7a38ce9172d414cb"
+
+[[file]]
+path = "speed/prompts/write.txt"
+made = "tools/py/build_speed_prompts.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "88a42e5d1cdd7a3f8ef47aca4744daacc361f0f5d06857bb352a3037df3d4424"
+
+[[file]]
+path = "speed/prompts/explain.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "00b0498ec95424f5ec09966b93e9023cddf96b104287801cd636de8cc0524b06"
+
+[[file]]
+path = "speed/prompts/write.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "5094aed70a8eb39bf6bdddfe9e553a6d0008e3f025390825d7501c9521ac3e6c"
+
+[[file]]
+path = "speed/sources/encoder.py"
+made = "CPython v3.13.3 Lib/json/encoder.py, a byte copy (sha256 pinned in speed/prompts.json)"
+license = "PSF-2.0; the license text is speed/sources/LICENSE-PSF"
+sha256 = "c541dfbf3bd73dcd11fbeae6f1aa133626bfb1161cc4a8a7b5b22b6543992e27"
+
+[[file]]
+path = "speed/sources/LICENSE-PSF"
+made = "the PSF License Agreement, copied from CPython's LICENSE at tag v3.13.3"
+license = "PSF-2.0"
+sha256 = "51597deb8d6d1dfccd80c6b307761f15f13207b86a487225453e8123e2216344"
+
+[[file]]
+path = "speed/made-from.json"
+made = "tools/py/build_speed_prompts.py: each speed prompt's token count and FNV-1a 64 of its ids, the edit prompt's included"
+license = "MIT OR Apache-2.0"
+sha256 = "079d777d6d08041f2d72d94ea4761cd941bfddbb9811c93a9d2df087f1095a1b"
+
+[[file]]
+path = "kl/corpus.txt"
+made = "tools/py/build_kl_corpus.py from the sources below"
+license = "per source, see below"
+sha256 = "ef5cc651900185428ece3094665bbe86d91c5378fe0dd858ebf3e2e384b9be83"
+
+[[file]]
+path = "kl/sources.json"
+made = "tools/py/build_kl_corpus.py"
+license = "MIT OR Apache-2.0"
+sha256 = "104d433f594e3a2034b73e4cd62061cae705d2e0fa719ddc31600097e2e2b412"
+
+[[file]]
+path = "template/qwen36-chat-template.jinja"
+made = "tokenizer.chat_template of Qwen3.6-35B-A3B-UD-Q4_K_M.gguf (sha256 0b21525e…c58b), Apache-2.0"
+license = "Apache-2.0 (the model's; GGUF general.license and the Unsloth card, checked 2026-10-18)"
+sha256 = "55d4931433fe502b794226ee7f4d206a6bdd436ac9f80eb7d8ebb4c639f9ea0c"
+
+[[file]]
+path = "template/requests/t01-multiturn-reasoning-dropped.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "5c4eceefbc43d59844f84b80c02a0bf0cf17980337cd688dd9981880ebbc46d5"
+
+[[file]]
+path = "template/requests/t02-multiturn-preserve-thinking.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "67f3f53f2089703cbedd71dffda9b33f2376c7fb3dacda9b4330da7182ec87d2"
+
+[[file]]
+path = "template/requests/t03-toolloop-reasoning-echoed.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "dd96f20f9579d0127db45df36fa375409c054b790948b1e9573f618a1e468a3b"
+
+[[file]]
+path = "template/requests/t04-toolloop-no-reasoning.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "0e4fd1263d8dd30921c8bc12856b43de29696c51197ed225a6c1e5be3e0f640d"
+
+[[file]]
+path = "template/requests/t05-new-user-after-toolloop.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "8dd399c2fb1e851fc0722a06cf4439c88cb95ad2a3412746fe7a8095b3a4456e"
+
+[[file]]
+path = "template/requests/t06-parallel-two-calls.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "31629e095af208d24267b6ca61d7ca59c76bde456ba9bfd4d200195284b734e6"
+
+[[file]]
+path = "template/requests/t07-parallel-three-calls.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "70afd2c07f313ba72b6038dd3102f2a9ce7c40273b9a19aa8330f4dea6055290"
+
+[[file]]
+path = "template/requests/t08-nonstring-arguments.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "e0c59b6f9650f2d8ec135262d0fd480c730fd4ce9ca52e17bb618f80c919c533"
+
+[[file]]
+path = "template/requests/t09-developer-role.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "cf3e669fb06915f8c5f4fcf5b7c24d93e06ef10e8f37c2ce1923db61e7abd80c"
+
+[[file]]
+path = "template/requests/t10-two-leading-systems.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "0101e3d2aa2a309a5f3967b1a28a6cbb8c5133b194a6fcca2c4da5ed9e181544"
+
+[[file]]
+path = "template/requests/t11-system-mid-conversation.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "37196ec1e886746ded8543d3569f2d6a3ab0a94bbc6f2a93c23a094d7d07bca2"
+
+[[file]]
+path = "template/requests/t12-nonascii-tool-description.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "1b8fc9450b44ba186de148e320f7d44d8703c1b3604e40c868a56e232a3caa20"
+
+[[file]]
+path = "template/requests/t13-empty-tools.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "886731e1058486b43b77930b043cbe84f23d2fe59ea354f70004c399cd0cdf26"
+
+[[file]]
+path = "template/requests/t14-thinking-off-history.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "197c25d8140b65b61595f1cbce9a47a392228df3f87e5625e20281436c7709f1"
+
+[[file]]
+path = "template/requests/t15-content-parts.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "caa7841ecc7528cf42f579b7e15e96b1c66aef8acc947dc93775f058a2062eee"
+
+[[file]]
+path = "template/requests/t16-tool-extra-keys.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "2103f46d4efdc3c929393cde0d49e78560967843f66893729aeee23fc15decf6"
+
+[[file]]
+path = "template/requests/t17-text-before-tool-messages.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "8148a7d11fd55c5ab42d4f1cd6f44197e014e0f4414f3d6767ddb5fa47266290"
+
+[[file]]
+path = "template/requests/t18-multiturn-reasoning-default.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "9ba0a5c68d4e6ece91e027c1f79efb81563906a23430ce7de723ebffcca8fa6e"
+
+[[file]]
+path = "template/anthropic/a01-system-blocks-and-billing-header.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "2760471c3d4bc500abb4c8ff449b0bb9c11011acae707a59d1b3734a47eb3958"
+
+[[file]]
+path = "template/anthropic/a02-thinking-and-tool-result-blocks.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "92cf4b2e5dbb5088af60537fb1a7fa4f69c2898c0c049c47238389d1ef419d38"
+
+[[file]]
+path = "template/anthropic/a03-text-beside-tool-results.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "a9a353ba458381ea8b0532d83c9b3617b3c0167afbf3b9930bf6b4b233625e45"
+
+[[file]]
+path = "template/anthropic/a04-string-content-and-error-result.json"
+made = "written for Artemis"
+license = "MIT OR Apache-2.0"
+sha256 = "779a144fa4d2f61edeb17b4aea8ddd26e1c119626cf12307096659d21477c400"
+
+[[file]]
+path = "template/prompts/t01-multiturn-reasoning-dropped.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "af2c7e13c20b0840e0ca1f6c3597b8c0eedbe6049da5be29586694dbec077b6d"
+
+[[file]]
+path = "template/prompts/t02-multiturn-preserve-thinking.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "b45ea42a88c72ea66ad0acf46d558462a27217c401a9844e10949326149e6c5c"
+
+[[file]]
+path = "template/prompts/t03-toolloop-reasoning-echoed.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "71ca07e6484bce16eeebc1f0a7ca2850aa85499be48102721baff66c70f46b44"
+
+[[file]]
+path = "template/prompts/t04-toolloop-no-reasoning.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "ade4c0cad290d57cc21c5fc0311948ef09db8bae2e868cbef8b7710c7df11919"
+
+[[file]]
+path = "template/prompts/t05-new-user-after-toolloop.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "7b85de70fb8370c388e36e26e7bbcf6d5871f4ec8e34d9265c1b49e08fcdabda"
+
+[[file]]
+path = "template/prompts/t06-parallel-two-calls.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "bef60fce2dfd122e06d3a9ad375cb0d66e36fe175066aedb9154251f9e390a29"
+
+[[file]]
+path = "template/prompts/t07-parallel-three-calls.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "f690754802980f8f43a095e3c73febb76df92928d881c3325133158de84e0230"
+
+[[file]]
+path = "template/prompts/t08-nonstring-arguments.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "2551c3397a71ae78c7c7a52c4569acbc63b41dd5a52273e7f0ac62c04c229f92"
+
+[[file]]
+path = "template/prompts/t09-developer-role.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "3c2ecbbaf223eae18c8b168f80d8929869b2e84db3026a476d3a01333f6560ae"
+
+[[file]]
+path = "template/prompts/t10-two-leading-systems.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "2c762d8646635120d99acc9de91a68ad0ccf74ecbeb36837a775f6f4844b17b2"
+
+[[file]]
+path = "template/prompts/t11-system-mid-conversation.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "a05af702e27c3d0e692217d20528e36d8639f224f3d574ad68507bd57f5e0d01"
+
+[[file]]
+path = "template/prompts/t12-nonascii-tool-description.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "e1fd1b1cee5607dcaa50f9250eef6192185e73b567dd504062789cf333facdcf"
+
+[[file]]
+path = "template/prompts/t13-empty-tools.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "600d037a7aa36d634fa3e8b68b4f2b97ff3701acbfd34e667f599e254eeff61f"
+
+[[file]]
+path = "template/prompts/t14-thinking-off-history.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "9511a9fc5d41c4aaec38e0b05b9c4792d990c3b5fe762e236008e4ca7aa7ace0"
+
+[[file]]
+path = "template/prompts/t15-content-parts.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "dcd6661bac298968aa1b83e54527a88ea49a0552315916b3227e9b64be7af4d6"
+
+[[file]]
+path = "template/prompts/t16-tool-extra-keys.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "566d049fe82809a46d822ae0d381b6533a6ecfff7b832796c7e5151353510d7c"
+
+[[file]]
+path = "template/prompts/t17-text-before-tool-messages.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "f6e669ded10fc6377507127863418abe817855b7de40956602ef4c69e7326775"
+
+[[file]]
+path = "template/prompts/t18-multiturn-reasoning-default.txt"
+made = "tools/py/build_template_fixtures.py: rendered by llama-server b11509's /apply-template"
+license = "MIT OR Apache-2.0"
+sha256 = "b45ea42a88c72ea66ad0acf46d558462a27217c401a9844e10949326149e6c5c"
+
+[[file]]
+path = "template/prompts/t01-multiturn-reasoning-dropped.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "81ca1f956dfcc16303addadcd731e52a25eeaadd518955f9536436a1f40f84e8"
+
+[[file]]
+path = "template/prompts/t02-multiturn-preserve-thinking.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "b4b286894c591e6ffa0ed17542d5334ca44b840ad44719715bd707fc1a0f3e42"
+
+[[file]]
+path = "template/prompts/t03-toolloop-reasoning-echoed.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "86a0b2da606078cc998bdec06c20e572e29bfa3c34953ef85a2165421a58b896"
+
+[[file]]
+path = "template/prompts/t04-toolloop-no-reasoning.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "d58222730dc9d093dab4286501eb7e8803adc056bd436c285e32f948950bb832"
+
+[[file]]
+path = "template/prompts/t05-new-user-after-toolloop.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "26873ea5f7c9b3945f1a89ebd6ae3c87689f66d4e2c17be49d9f0be7cfa57f87"
+
+[[file]]
+path = "template/prompts/t06-parallel-two-calls.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "f8a855a30df4ea9f53aecb56d56e9bece2c2add3ee0d139c9ca0fc61c27ca372"
+
+[[file]]
+path = "template/prompts/t07-parallel-three-calls.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "400345528b4cc3cca94ff8431211bbef31d06442ef2d3129dc1c10ad436c072a"
+
+[[file]]
+path = "template/prompts/t08-nonstring-arguments.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "95408891bdbcd1eb6f21c5baf38d6d67b2d7124b3a3a4082b1b6f2557fa86b8d"
+
+[[file]]
+path = "template/prompts/t09-developer-role.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "935f4e0bcf7f572e1305653839a22549d92c5c5e4cb6e1b4b317ff48c07cdd0e"
+
+[[file]]
+path = "template/prompts/t10-two-leading-systems.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "53cba8f8368300d98ecd9d4623b688bc5ec392f5d2c8e0fdaa94c2f400d75bfe"
+
+[[file]]
+path = "template/prompts/t11-system-mid-conversation.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "2f7a6db7d931b7a262cc505940dd5210025b65a33f5af7dd577e7412fe02151b"
+
+[[file]]
+path = "template/prompts/t12-nonascii-tool-description.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "005cd0a5a68985941fb70b6cdd1928d79eae9cc35c855a78129922191d29691b"
+
+[[file]]
+path = "template/prompts/t13-empty-tools.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "a35c9d21ce1974c95d126870316b7e9d1a01efd0f71808777bd4547a0dc47c8e"
+
+[[file]]
+path = "template/prompts/t14-thinking-off-history.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "9f3f557a054c42162a7ff031ee8e34b1578a83eadb60636e66e681414673e752"
+
+[[file]]
+path = "template/prompts/t15-content-parts.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "c03f3fbfd9dbbe93c120beb3e1a125facbcc5e52d29d5552bb1134ab33d72d2b"
+
+[[file]]
+path = "template/prompts/t16-tool-extra-keys.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "4524ffb93ad5686a0889ca9fcf684c6f548a5eb26ee197013d337240ee3b3ea7"
+
+[[file]]
+path = "template/prompts/t17-text-before-tool-messages.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "3767fc64bc2e4da2a76c5c45dcc407c990a7e02620e90574274125c6b716e001"
+
+[[file]]
+path = "template/prompts/t18-multiturn-reasoning-default.tokens"
+made = "artemis-oracle (llama.cpp b11509) tokenize"
+license = "MIT OR Apache-2.0"
+sha256 = "b4b286894c591e6ffa0ed17542d5334ca44b840ad44719715bd707fc1a0f3e42"
+
+[[file]]
+path = "template/anthropic/a01-system-blocks-and-billing-header.count"
+made = "tools/py/build_template_fixtures.py: llama-server b11509's /v1/messages/count_tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "6d7a2f973a60301a703dc052df9f1f0cf6dd261d9ffa1b5891d8c7e749ea0e50"
+
+[[file]]
+path = "template/anthropic/a02-thinking-and-tool-result-blocks.count"
+made = "tools/py/build_template_fixtures.py: llama-server b11509's /v1/messages/count_tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "e11e6079110680dbfcebe02b69f00171df4e71bdd97ff8b23599db0038721eff"
+
+[[file]]
+path = "template/anthropic/a03-text-beside-tool-results.count"
+made = "tools/py/build_template_fixtures.py: llama-server b11509's /v1/messages/count_tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "eba4c3f9bb9a4e38c20cbb1c98b108c2bbdcba1b7316e6b0b1351517cbf9a37b"
+
+[[file]]
+path = "template/anthropic/a04-string-content-and-error-result.count"
+made = "tools/py/build_template_fixtures.py: llama-server b11509's /v1/messages/count_tokens"
+license = "MIT OR Apache-2.0"
+sha256 = "1184d999f23ecad6cca632a6a4d265ba9c47022f1b552c299f30868eb018bd6f"
+
+[[file]]
+path = "clients/opencode/001-chat.json"
+made = "tools/py/capture_clients.py: OpenCode 2.0.30 against the recording stub, scrubbed by tools/py/scrub_captures.py"
+license = "MIT (OpenCode's text); MIT OR Apache-2.0 (the rest)"
+sha256 = "64f3f9e00132e6c90f9d2498917d64d329e074cfbdf5205a8e6b7792bf5c445c"
+
+[[file]]
+path = "clients/opencode/002-chat.json"
+made = "tools/py/capture_clients.py: OpenCode 2.0.30 against the recording stub, scrubbed by tools/py/scrub_captures.py"
+license = "MIT (OpenCode's text); MIT OR Apache-2.0 (the rest)"
+sha256 = "f4ca4e01f1fa24cfaef23dfd7f6b553edfdb7e20e7c64e118356a7266874b3c2"
+
+[[file]]
+path = "clients/opencode/003-chat.json"
+made = "tools/py/capture_clients.py: OpenCode 2.0.30 against the recording stub, scrubbed by tools/py/scrub_captures.py"
+license = "MIT (OpenCode's text); MIT OR Apache-2.0 (the rest)"
+sha256 = "27e99c5c0c1fdb89501f56bf103bd2216777dbbd99b649b9223e68726e12828f"
+
+[[file]]
+path = "clients/opencode/004-chat.json"
+made = "tools/py/capture_clients.py: OpenCode 2.0.30 against the recording stub, scrubbed by tools/py/scrub_captures.py"
+license = "MIT (OpenCode's text); MIT OR Apache-2.0 (the rest)"
+sha256 = "7cde57947c420d3f89aaf07a6faffb0543e68f8a5bdbb7c8cf578ffbb257b96e"
+
+[[file]]
+path = "clients/opencode/005-chat.json"
+made = "tools/py/capture_clients.py: OpenCode 2.0.30 against the recording stub, scrubbed by tools/py/scrub_captures.py"
+license = "MIT (OpenCode's text); MIT OR Apache-2.0 (the rest)"
+sha256 = "42d2d57318c21c8383a959e6ccce6c94ab098a50a4e29b98a8a7d134e620911b"
+
+[[file]]
+path = "clients/opencode/LICENSE-OpenCode"
+made = "OpenCode's copyright notice, copied from the upstream repository's LICENSE at tag v2.0.30 (anomalyco/opencode)"
+license = "MIT"
+sha256 = "625f0f619133f89bbbb2abe37369613dfa1885eba1e50d02170deb62bb42cb6b"
+
+[[file]]
+path = "clients/claude-code/001-messages.json"
+made = "tools/py/capture_clients.py: Claude Code 2.1.302 against the recording stub; every string replaced by tools/py/scrub_captures.py"
+license = "The structure of Claude Code 2.1.302's requests, with every string replaced; no licence is claimed over Claude Code itself"
+sha256 = "0eb2c36c8e65745d9bd96883fbb6c0f78402454eb7fc61f950ae950305a3b0a6"
+
+[[file]]
+path = "clients/claude-code/002-messages.json"
+made = "tools/py/capture_clients.py: Claude Code 2.1.302 against the recording stub; every string replaced by tools/py/scrub_captures.py"
+license = "The structure of Claude Code 2.1.302's requests, with every string replaced; no licence is claimed over Claude Code itself"
+sha256 = "862b334fcf91cee4eb069012c580a382b9fc8130f6d88aeb19b8e1ad6ec2e05b"
+
+[[file]]
+path = "clients/claude-code/003-messages.json"
+made = "tools/py/capture_clients.py: Claude Code 2.1.302 against the recording stub; every string replaced by tools/py/scrub_captures.py"
+license = "The structure of Claude Code 2.1.302's requests, with every string replaced; no licence is claimed over Claude Code itself"
+sha256 = "d2886d70569a20da61095ec9fd1da5db9dc86e8737887a02685e8187a7a118f2"
+
+[[file]]
+path = "clients/claude-code/004-messages.json"
+made = "tools/py/capture_clients.py: Claude Code 2.1.302 against the recording stub; every string replaced by tools/py/scrub_captures.py"
+license = "The structure of Claude Code 2.1.302's requests, with every string replaced; no licence is claimed over Claude Code itself"
+sha256 = "2471059b3dc6276e814a34e1eb050a638f98c0d3be0a5499dc53387a53c4cece"
+
+[[source]]
+id = "pg-1342"
+url = "https://www.gutenberg.org/cache/epub/1342/pg1342.txt"
+license = "Public domain (Project Gutenberg #1342, Pride and Prejudice)"
+kind = "prose"
+pinned = true
+sha256 = "3f6bb9d6f78e0293b56acd4714dd68cb7d6d1d293402031ce9d5a216bcaf9d75"
+used = "the first 250,000 characters after the Project Gutenberg header"
+
+[[source]]
+id = "pg-84"
+url = "https://www.gutenberg.org/cache/epub/84/pg84.txt"
+license = "Public domain (Project Gutenberg #84, Frankenstein)"
+kind = "prose"
+pinned = true
+sha256 = "7810cd483cffcf2cc8a1d8f0d5807931e69d4f48cd14149b8c76f88af82fead3"
+used = "the first 100,000 characters after the Project Gutenberg header"
+
+[[source]]
+id = "llama.cpp-b11509-llama-vocab.cpp"
+url = "https://raw.githubusercontent.com/ggml-org/llama.cpp/b11509/src/llama-vocab.cpp"
+license = "MIT"
+kind = "code"
+pinned = true
+sha256 = "e772949cb8ad204f87845cb5e18f11e8a419fdb872e5f645012e5b6a9f84588f"
+used = "the first 150,000 characters"
+
+[[source]]
+id = "transformers-v4.57.0-generation-utils.py"
+url = "https://raw.githubusercontent.com/huggingface/transformers/v4.57.0/src/transformers/generation/utils.py"
+license = "Apache-2.0"
+kind = "code"
+pinned = true
+sha256 = "a20024b1e82ed5361a524d238d2197be5407abc91297dd9888c57e8284d63fef"
+used = "the first 150,000 characters"
+
+[[source]]
+id = "typescript-v5.9.2-scanner.ts"
+url = "https://raw.githubusercontent.com/microsoft/TypeScript/v5.9.2/src/compiler/scanner.ts"
+license = "Apache-2.0"
+kind = "code"
+pinned = true
+sha256 = "02f9e8f02e234b0e917e753a7b74f975c9b9b95f7f01ee4bc151081ed43dea49"
+used = "the first 100,000 characters"
+
+[[source]]
+id = "rust-1.90.0-core-str-mod.rs"
+url = "https://raw.githubusercontent.com/rust-lang/rust/1.90.0/library/core/src/str/mod.rs"
+license = "MIT OR Apache-2.0"
+kind = "code"
+pinned = true
+sha256 = "27e5268c0e4d586cca103b77bbb967f791726605ac142d3b51e452849ce28c53"
+used = "the first 100,000 characters"
+
+[[source]]
+id = "tatoeba-cmn"
+url = "https://downloads.tatoeba.org/exports/per_language/cmn/cmn_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "f907d1928eeaaaee75bac1987fb3349bd79c96caa8f1467b58cca042aa99a6aa"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-jpn"
+url = "https://downloads.tatoeba.org/exports/per_language/jpn/jpn_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "dd942845be225766229fa6391cbb7796c6b8bdcaea38809e65720cc406dace93"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-kor"
+url = "https://downloads.tatoeba.org/exports/per_language/kor/kor_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "a1aa17c42d7c22c9c83a5e4f2259fd254ac208162cb29a3b53922847e7ec5d6a"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-rus"
+url = "https://downloads.tatoeba.org/exports/per_language/rus/rus_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "e3cd7877e41a9e4b4b77c09975441ae62b8e7403b5a23596f8e92d5b8a24d8bf"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-ara"
+url = "https://downloads.tatoeba.org/exports/per_language/ara/ara_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "ade96f2fe5ec2a0c3e63edb717886fb96ce09333e2e716f32721de6da7882d23"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-hin"
+url = "https://downloads.tatoeba.org/exports/per_language/hin/hin_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "54064a02179d57e3b9db41a5990cdfd68205db77ef05e2e4e03f53be93df6f61"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-deu"
+url = "https://downloads.tatoeba.org/exports/per_language/deu/deu_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "d44d01f9b4977ae5fb9a9f9a38c27621c278cdc850a483715bd0cee65686056a"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-fra"
+url = "https://downloads.tatoeba.org/exports/per_language/fra/fra_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "35642092ea1de824882942c3519860cf900109d3921160e65482f64031bea13a"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-spa"
+url = "https://downloads.tatoeba.org/exports/per_language/spa/spa_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "aef78e2e2d383f32d15beee1e406ed12291dcd72c1c2bfbfe2d8c27868516439"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-vie"
+url = "https://downloads.tatoeba.org/exports/per_language/vie/vie_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "25aa17ad8c5a694250fa928fc691344ee5b379d952336e8fa8f17508fe573494"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-tha"
+url = "https://downloads.tatoeba.org/exports/per_language/tha/tha_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "d03a70b0189cf410e3b6ce4d6e0daa4062a01518d71ed1efd2fbed619669e5a4"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-heb"
+url = "https://downloads.tatoeba.org/exports/per_language/heb/heb_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "dfc2124217694b29060f00d4b959c6eed51c2eb6a77984f2edf5067a36e917a6"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-ell"
+url = "https://downloads.tatoeba.org/exports/per_language/ell/ell_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "40a786e0767134a94a8c531e96d67b1a7ee3ddc89a5dc85302dc1aa9f83c58ab"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-tur"
+url = "https://downloads.tatoeba.org/exports/per_language/tur/tur_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "b41ff083d48834af8522887e312407e27b7e9e426703965a5b841ec88a02d560"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-ukr"
+url = "https://downloads.tatoeba.org/exports/per_language/ukr/ukr_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "a055fe3ea333ce9051610f933b02f6ad4869edfc5e5928d5b5ac1cbae0d04362"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "tatoeba-pol"
+url = "https://downloads.tatoeba.org/exports/per_language/pol/pol_sentences.tsv.bz2"
+license = "CC-BY-2.0-FR (Tatoeba, https://tatoeba.org; sentences by Tatoeba contributors)"
+kind = "multilingual"
+pinned = false
+sha256 = "4d916109e3ac4c8a23abb7bcf2d97ceca9167e9a399d01fc7b730b7378cde801"
+used = "the first 12,000 characters of sentences, in id order"
+
+[[source]]
+id = "artemis-edge-cases"
+url = "tools/py/build_tokenizer_corpus.py"
+license = "MIT OR Apache-2.0"
+kind = "edge cases"
+pinned = true
+sha256 = "0df8e41eae55e76ca6b8f140de4340f5120914fbf2b279a326c4b7d55bef06c1"
+used = "all of it"
+
+[[source]]
+id = "rust-1.90.0-core-option.rs"
+url = "https://raw.githubusercontent.com/rust-lang/rust/1.90.0/library/core/src/option.rs"
+license = "MIT OR Apache-2.0 (The Rust Project Developers)"
+kind = "code"
+pinned = true
+sha256 = "53b549b18552144e911416aa2773e8b726da88c190d5cb27007c3c08740894a5"
+used = "all of it, in prompt 20-long-option-rs"
+path = "golden/sources/rust-1.90.0-core-option.rs"
+
+[[source]]
+id = "cpython-json-encoder"
+url = "https://raw.githubusercontent.com/python/cpython/v3.13.3/Lib/json/encoder.py"
+sha256 = "c541dfbf3bd73dcd11fbeae6f1aa133626bfb1161cc4a8a7b5b22b6543992e27"
+kind = "code"
+pinned = true
+license = "PSF-2.0"
+used = "the first 9,000 characters, in the edit prompt"
+path = "speed/sources/encoder.py"
+committed = true
+
+[[source]]
+id = "rust-1.90.0-core-iter-iterator.rs"
+url = "https://raw.githubusercontent.com/rust-lang/rust/1.90.0/library/core/src/iter/traits/iterator.rs"
+license = "MIT OR Apache-2.0"
+kind = "code"
+pinned = true
+sha256 = "cb1976c3f6b02b3c79d40d4460493452cfcdb5e58002fc196d90d2a6b9793196"
+characters = 47477
+used = "the first 47,477 characters, line ends as LF"
+
+[[source]]
+id = "llama.cpp-b11509-ggml.c"
+url = "https://raw.githubusercontent.com/ggml-org/llama.cpp/b11509/ggml/src/ggml.c"
+license = "MIT"
+kind = "code"
+pinned = true
+sha256 = "7e8bf2b60598b50d718f46aa3c36c9293b10f4e7dfde6844f0693e6fc976d505"
+characters = 47465
+used = "the first 47,465 characters, line ends as LF"
+
+[[source]]
+id = "transformers-v4.57.0-modeling-utils.py"
+url = "https://raw.githubusercontent.com/huggingface/transformers/v4.57.0/src/transformers/modeling_utils.py"
+license = "Apache-2.0"
+kind = "code"
+pinned = true
+sha256 = "7d5c231470e143232d7dcff7276be68e8a599835d8619e469ef0ff8bd302cb95"
+characters = 47458
+used = "the first 47,458 characters, line ends as LF"
+
+[[source]]
+id = "typescript-v5.9.2-core.ts"
+url = "https://raw.githubusercontent.com/microsoft/TypeScript/v5.9.2/src/compiler/core.ts"
+license = "Apache-2.0"
+kind = "code"
+pinned = true
+sha256 = "1512daf31972388d2c43d07b96ee202f659ba8e74e356b8f01d1f6e92192e92c"
+characters = 47495
+used = "the first 47,495 characters, line ends as LF"
+
+[[source]]
+id = "pg-1661"
+url = "https://www.gutenberg.org/cache/epub/1661/pg1661.txt"
+license = "Public domain (Project Gutenberg #1661, The Adventures of Sherlock Holmes)"
+kind = "prose"
+pinned = true
+sha256 = "922e2a12ccb43a4c9544c260b2166c6ad2097aeb5957faeee113f173bb857cd0"
+characters = 106979
+used = "the first 106,979 characters after the Project Gutenberg header, line ends as LF"
+
+[[source]]
+id = "pg-98"
+url = "https://www.gutenberg.org/cache/epub/98/pg98.txt"
+license = "Public domain (Project Gutenberg #98, A Tale of Two Cities)"
+kind = "prose"
+pinned = true
+sha256 = "d54c2b80d40a40b982cd88852c6180bb944d95acdb028af3d0e01a1750681784"
+characters = 106989
+used = "the first 106,989 characters after the Project Gutenberg header, line ends as LF"

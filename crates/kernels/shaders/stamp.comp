@@ -1,0 +1,13 @@
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_shader_realtime_clock : require
+
+// Writes the device clock to tim[idx].
+layout(local_size_x = 1) in;
+layout(buffer_reference, std430, buffer_reference_align = 8) buffer T64 { uint64_t v[]; };
+layout(push_constant) uniform Push { uint64_t tim; uint idx; uint pad; } p;
+
+void main() {
+    T64(p.tim).v[p.idx] = clockRealtimeEXT();
+}

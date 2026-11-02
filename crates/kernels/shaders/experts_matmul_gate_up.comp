@@ -1,0 +1,106 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#include "silu_det.glsl"
+#include "quant.glsl"
+#include "slots.glsl"
+
+// The routed experts' gate and up projections and SwiGLU for a batch, grouped by expert: workgroup
+// (x, y) takes moe_group's tile y, up to 64 entries of one expert, and rows 64x .. 64x + 64 of its gate and up
+// matrices, read once through the slot table at whatever address the entry holds. Entry i of the list is token
+// list[i] / k; its output row act[i] = silu_det(gate·x) ⊙ (up·x), each dot product summed over the inputs in order, as
+// matmul's tiles sum them (32 values at a time, dequantized in the load). An empty tile does nothing; a refused entry
+// is recorded in the status buffer and its rows are NaN, as experts_gate_up does.
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Tiles { uvec4 v[]; };
+
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(push_constant) uniform Push {
+    uint64_t table;
+    uint64_t list;
+    uint64_t tiles;
+    uint64_t x;
+    uint64_t act;
+    uint64_t status;
+    uint layer_base;
+    uint n_embd;
+    uint n_ff;
+    uint gate_type;
+    uint up_type;
+    uint up_off;
+    uint layer;
+    uint k;
+} p;
+
+// dispatch.rs's EXPERTS_GATE_UP_SHARED_BYTES (24,576) is these three arrays' size, and Kernels::new checks it against
+// the device: change them together.
+shared float wg[2048];
+shared float wu[2048];
+shared float xs[2048];
+
+void main() {
+    uvec4 tile = Tiles(p.tiles).v[gl_WorkGroupID.y];
+    if (tile.z == 0u) {
+        return;
+    }
+    uint tx = gl_LocalInvocationID.x, ty = gl_LocalInvocationID.y;
+    uint id = 16u * ty + tx;
+    uint r0 = 64u * gl_WorkGroupID.x;
+    Slot s = slot_at(p.table, p.layer_base + tile.x);
+    if (!usable(s)) {
+        if (id == 0u) {
+            refuse(p.status, s, p.layer, tile.x);
+        }
+        for (uint e = id; e < 64u * tile.z; e += 256u) {
+            uint r = r0 + e % 64u;
+            if (r < p.n_ff) {
+                F32s(p.act).v[(tile.y + e / 64u) * p.n_ff + r] = uintBitsToFloat(0x7FC00000u);
+            }
+        }
+        return;
+    }
+    // Invocation `id` loads row (and entry) id / 4, values 8·(id % 4) .. + 8 of each slice.
+    uint lr = id / 4u, lk = 8u * (id % 4u);
+    bool rin = r0 + lr < p.n_ff, tin = lr < tile.z;
+    uint64_t grow = s.addr + uint64_t(r0 + lr) * uint64_t(row_bytes(p.gate_type, p.n_embd));
+    uint64_t urow = s.addr + uint64_t(p.up_off) + uint64_t(r0 + lr) * uint64_t(row_bytes(p.up_type, p.n_embd));
+    uint token = tin ? U32s(p.list).v[tile.y + lr] / p.k : 0u;
+    uint64_t xrow = p.x + 4ul * uint64_t(token) * uint64_t(p.n_embd);
+    precise float ag[16], au[16];
+    for (uint i = 0u; i < 16u; i++) {
+        ag[i] = 0.0;
+        au[i] = 0.0;
+    }
+    for (uint k0 = 0u; k0 < p.n_embd; k0 += 32u) {
+        for (uint e = 0u; e < 8u; e++) {
+            uint kk = lk + e;
+            wg[64u * kk + lr] = rin ? dq(p.gate_type, grow, k0 + kk) : 0.0;
+            wu[64u * kk + lr] = rin ? dq(p.up_type, urow, k0 + kk) : 0.0;
+            xs[64u * kk + lr] = tin ? F32s(xrow).v[k0 + kk] : 0.0;
+        }
+        barrier();
+        for (uint kk = 0u; kk < 32u; kk++) {
+            vec4 g = vec4(wg[64u * kk + 4u * ty], wg[64u * kk + 4u * ty + 1u], wg[64u * kk + 4u * ty + 2u],
+                          wg[64u * kk + 4u * ty + 3u]);
+            vec4 u = vec4(wu[64u * kk + 4u * ty], wu[64u * kk + 4u * ty + 1u], wu[64u * kk + 4u * ty + 2u],
+                          wu[64u * kk + 4u * ty + 3u]);
+            vec4 b = vec4(xs[64u * kk + 4u * tx], xs[64u * kk + 4u * tx + 1u], xs[64u * kk + 4u * tx + 2u],
+                          xs[64u * kk + 4u * tx + 3u]);
+            for (uint i = 0u; i < 4u; i++) {
+                for (uint j = 0u; j < 4u; j++) {
+                    ag[4u * i + j] = ag[4u * i + j] + g[i] * b[j];
+                    au[4u * i + j] = au[4u * i + j] + u[i] * b[j];
+                }
+            }
+        }
+        barrier();
+    }
+    for (uint i = 0u; i < 4u; i++) {
+        uint r = r0 + 4u * ty + i;
+        for (uint j = 0u; j < 4u; j++) {
+            uint c = 4u * tx + j;
+            if (r < p.n_ff && c < tile.z) {
+                F32s(p.act).v[(tile.y + c) * p.n_ff + r] = silu_det(ag[4u * i + j]) * au[4u * i + j];
+            }
+        }
+    }
+}

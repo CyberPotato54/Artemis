@@ -1,0 +1,63 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+#define RED_N 256u
+#include "reduce.glsl"
+
+// One query's attention over the f16 KV cache, first half: workgroup (s, h) covers cached positions
+// [256s, 256s + 256) for query head h, which reads KV head h / group. Thread t scores position 256s + t (q·k in
+// order over the head's dims, times scale); the chunk's max m and l = Σ exp(score - m) come from the trees; thread d
+// then sums exp(score_j - m)·v_j[d] over the chunk's positions in order. Writes [m, l, acc[0..hd]] for attn_combine.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t q;
+    uint64_t kc;
+    uint64_t vc;
+    uint64_t part;
+    uint n_ctx;
+    uint hd;
+    uint group;
+    uint kv_width;
+    uint n_split;
+    float scale;
+} p;
+
+shared float qs[256];
+shared float ws[256];
+
+void main() {
+    uint s = gl_WorkGroupID.x, h = gl_WorkGroupID.y, t = gl_LocalInvocationID.x;
+    uint kvh = h / p.group;
+    uint t0 = 256u * s;
+    uint nt = min(256u, p.n_ctx - t0);
+    if (t < p.hd) {
+        qs[t] = F32s(p.q).v[h * p.hd + t];
+    }
+    barrier();
+    float score = neg_inf();
+    if (t < nt) {
+        uint64_t kr = p.kc + uint64_t(2u * ((t0 + t) * p.kv_width + kvh * p.hd));
+        float acc = 0.0;
+        for (uint i = 0u; i < p.hd; i++) {
+            acc += unpackHalf2x16(uint(U16s(kr).v[i])).x * qs[i];
+        }
+        score = acc * p.scale;
+    }
+    float m = red_max(0u, t, score);
+    float e = t < nt ? exp(score - m) : 0.0;
+    float l = red_sum(0u, t, e);
+    ws[t] = e;
+    barrier();
+    F32s dst = F32s(p.part + uint64_t(4u * (h * p.n_split + s) * (p.hd + 2u)));
+    if (t < p.hd) {
+        float acc = 0.0;
+        for (uint j = 0u; j < nt; j++) {
+            acc += ws[j] * unpackHalf2x16(uint(U16s(p.vc).v[(t0 + j) * p.kv_width + kvh * p.hd + t])).x;
+        }
+        dst.v[2u + t] = acc;
+    }
+    if (t == 0u) {
+        dst.v[0] = m;
+        dst.v[1] = l;
+    }
+}

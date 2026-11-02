@@ -1,0 +1,62 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#include "common.glsl"
+#include "mbox.glsl"
+#include "slots.glsl"
+
+// The CPU miss path's publish: copy the layer's x and routed ids into the mailbox, compute the mask
+// (bit j set when routed expert j's slot-table entry, at the id the router chose, is WHERE_CPU), make those writes
+// complete (memoryBarrierBuffer in every invocation, then the workgroup barrier), then atomicExchange the layer's
+// publish flag. The CPU coordinator polls that flag, answers into the Y area, and sets the done flag that
+// miss_wait spins on. Ids go into the header as the router's raw f32 bits (the coordinator decodes them); the
+// mask's expert number is the id converted, as the expert kernels decode it.
+layout(local_size_x = 256) in;
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer V4r { uvec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 16) coherent writeonly buffer V4w { uvec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer Ur { uint v[]; };
+layout(push_constant) uniform Push {
+    uint64_t xv;
+    uint64_t idsv;
+    uint64_t table;
+    uint64_t mbox;
+    uint layer_base;
+    uint layer;
+    uint seq;
+    uint token;
+    uint n_embd;
+    uint k;
+} p;
+
+void main() {
+    uint t = gl_LocalInvocationID.x;
+    MU m = MU(p.mbox);
+    uint xoff = X0 + p.layer * XSTRIDE;
+    V4w mx = V4w(p.mbox + uint64_t(xoff + 256u));
+    for (uint i = t; i < p.n_embd / 4u; i += 256u) {
+        mx.v[i] = V4r(p.xv).v[i];
+    }
+    if (t < 8u) {
+        m.v[xoff / 4u + 8u + t] = t < p.k ? Ur(p.idsv).v[t] : 0u;
+    }
+    if (t == 0u) {
+        uint mask = 0u;
+        for (uint j = 0u; j < p.k; j++) {
+            uint e = uint(F32s(p.idsv).v[j]);
+            if (slot_at(p.table, p.layer_base + e).loc == WHERE_CPU) {
+                mask |= 1u << j;
+            }
+        }
+        m.v[xoff / 4u] = p.seq;
+        m.v[xoff / 4u + 1u] = p.token;
+        m.v[xoff / 4u + 2u] = p.layer;
+        m.v[xoff / 4u + 3u] = mask;
+    }
+    memoryBarrierBuffer();
+    barrier();
+    if (t == 0u) {
+        memoryBarrierBuffer();
+        atomicExchange(m.v[pub_word(p.layer)], p.seq);
+    }
+}

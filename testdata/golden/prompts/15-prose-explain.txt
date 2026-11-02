@@ -1,0 +1,7 @@
+<|im_start|>user
+Explain to a curious 12-year-old why the sky is blue during the day but red and orange at sunset. Use one everyday comparison and no equations.<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

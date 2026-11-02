@@ -1,0 +1,53 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#include "common.glsl"
+
+// The causal conv over a batch of tokens, carrying the state: channel c, token by token in order, does
+// what conv_step does for one token. y[t][c] = silu(Σ_τ window[τ]·w[c][τ]) over the window [state_c (oldest first),
+// x[t][c]]; then the window drops its oldest input and keeps x[t][c] (raw, not post-SiLU). x and y hold
+// [tokens][n]; the state ([n][kw − 1]) ends holding the last kw − 1 inputs, unless store is 0: then it is read and never
+// written (the verify pass keeps state set A), and y is the same. One invocation per channel,
+// with the window in a small local array (indexed by the runtime kw, so the compiler may keep it in memory). kw is 2
+// to 8.
+layout(local_size_x = 256) in;
+layout(push_constant) uniform Push {
+    uint64_t x;
+    uint64_t w;
+    uint64_t state;
+    uint64_t y;
+    uint n;
+    uint kw;
+    uint tokens;
+    uint store;
+} p;
+
+void main() {
+    uint c = gl_GlobalInvocationID.x;
+    if (c >= p.n) {
+        return;
+    }
+    F32s st = F32s(p.state + uint64_t(4u * c * (p.kw - 1u)));
+    F32s w = F32s(p.w + uint64_t(4u * c * p.kw));
+    float win[7];
+    for (uint t = 0u; t + 1u < p.kw; t++) {
+        win[t] = st.v[t];
+    }
+    for (uint tok = 0u; tok < p.tokens; tok++) {
+        float xc = F32s(p.x).v[tok * p.n + c];
+        float acc = 0.0;
+        for (uint t = 0u; t + 1u < p.kw; t++) {
+            acc += win[t] * w.v[t];
+        }
+        acc += xc * w.v[p.kw - 1u];
+        for (uint t = 0u; t + 2u < p.kw; t++) {
+            win[t] = win[t + 1u];
+        }
+        win[p.kw - 2u] = xc;
+        F32s(p.y).v[tok * p.n + c] = silu(acc);
+    }
+    if (p.store != 0u) {
+        for (uint t = 0u; t + 1u < p.kw; t++) {
+            st.v[t] = win[t];
+        }
+    }
+}

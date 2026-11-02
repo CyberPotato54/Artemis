@@ -1,0 +1,4 @@
+<|im_start|>user
+Pythonで、リストから重複を取り除きつつ元の順序を保つ方法を教えてください。短いコード例と、その仕組みの説明をお願いします。<|im_end|>
+<|im_start|>assistant
+<think>

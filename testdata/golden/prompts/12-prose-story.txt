@@ -1,0 +1,4 @@
+<|im_start|>user
+Write a short story, about 300 words, about a cartographer who discovers that one of the islands on her finest map does not exist. End it with a line of dialogue.<|im_end|>
+<|im_start|>assistant
+<think>

@@ -1,0 +1,14 @@
+<|im_start|>system
+You are a careful assistant.<|im_end|>
+<|im_start|>user
+Why is the sky blue?<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+
+Air scatters blue light more than red.<|im_end|>
+<|im_start|>user
+And why are sunsets red?<|im_end|>
+<|im_start|>assistant
+<think>

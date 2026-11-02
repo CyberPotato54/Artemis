@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 300" width="320" height="300" role="img" aria-label="A black cat sitting in front of the moon">
+  <!-- The moon: a pale disc with a few soft craters, so the black cat reads on light and dark pages alike. -->
+  <circle cx="160" cy="150" r="142" fill="#eeeaf7"/>
+  <circle cx="76" cy="96" r="14" fill="#e1dcef"/>
+  <circle cx="240" cy="74" r="9" fill="#e1dcef"/>
+  <circle cx="268" cy="150" r="13" fill="#e1dcef"/>
+  <circle cx="62" cy="196" r="9" fill="#e1dcef"/>
+
+  <!-- Tail, curling up beside the body. -->
+  <path d="M206 262 C 248 262, 266 222, 250 192 C 240 181, 228 188, 236 199 C 248 214, 240 244, 204 246 Z" fill="#17151c"/>
+
+  <!-- Body. -->
+  <path d="M110 270 C 104 222, 118 168, 160 160 C 202 168, 216 222, 210 270 Z" fill="#17151c"/>
+  <!-- Front paws. -->
+  <ellipse cx="140" cy="270" rx="17" ry="9" fill="#17151c"/>
+  <ellipse cx="180" cy="270" rx="17" ry="9" fill="#17151c"/>
+
+  <!-- Ears, with a soft inner colour. -->
+  <path d="M106 112 L 112 50 L 152 88 Z" fill="#17151c"/>
+  <path d="M214 112 L 208 50 L 168 88 Z" fill="#17151c"/>
+  <path d="M116 100 L 119 66 L 141 87 Z" fill="#3a3342"/>
+  <path d="M204 100 L 201 66 L 179 87 Z" fill="#3a3342"/>
+
+  <!-- Head. -->
+  <ellipse cx="160" cy="128" rx="62" ry="54" fill="#17151c"/>
+
+  <!-- Eyes: big and round, with highlights. -->
+  <ellipse cx="135" cy="124" rx="15" ry="17" fill="#f2c94c"/>
+  <ellipse cx="185" cy="124" rx="15" ry="17" fill="#f2c94c"/>
+  <ellipse cx="136" cy="126" rx="6" ry="12" fill="#17151c"/>
+  <ellipse cx="186" cy="126" rx="6" ry="12" fill="#17151c"/>
+  <circle cx="131" cy="117" r="4" fill="#ffffff"/>
+  <circle cx="181" cy="117" r="4" fill="#ffffff"/>
+
+  <!-- Nose and mouth. -->
+  <path d="M154 146 L 166 146 L 160 153 Z" fill="#f4a6b8"/>
+  <path d="M160 153 C 158 160, 150 161, 147 157 M160 153 C 162 160, 170 161, 173 157" fill="none" stroke="#5b5265" stroke-width="2.2" stroke-linecap="round"/>
+
+  <!-- Whiskers. -->
+  <g stroke="#5b5265" stroke-width="1.8" stroke-linecap="round">
+    <path d="M128 150 L 88 144"/>
+    <path d="M128 156 L 90 160"/>
+    <path d="M192 150 L 232 144"/>
+    <path d="M192 156 L 230 160"/>
+  </g>
+</svg>
