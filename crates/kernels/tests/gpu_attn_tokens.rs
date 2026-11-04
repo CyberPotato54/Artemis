@@ -4,7 +4,7 @@
 mod common;
 use common::attention_shapes;
 use kernels::{
-    dispatch::{attn_decode_kernel, attn_splits},
+    dispatch::{attn_splits, attn_tokens_kernel},
     testing::{check, identity, rand_f32, score_range, Gpu},
     tokens::{attn_tokens_part_bytes, MAX_TOKENS},
     twin::{self, attention as at},
@@ -29,13 +29,10 @@ fn caches(rng: &mut Rng, n_ctx0: usize, width: usize) -> (Vec<u16>, Vec<u16>, Ve
     (kc, vc, kf)
 }
 
-/// The token kernel that serves a query decode would run on `kernel`.
-fn token_kernel(kernel: Kernel) -> Kernel {
-    match kernel {
-        Kernel::AttnDecode => Kernel::AttnDecodeTokens,
-        Kernel::AttnDecodeGqa => Kernel::AttnDecodeGqaTokens,
-        other => panic!("{} isn't a decode attention kernel", other.name()),
-    }
+/// Decode's shapes, which `attn_decode_gqa_tokens` serves, and one it does not (heads of 48 values), which runs
+/// `attn_decode_tokens` (`attn_tokens_kernel`).
+fn token_shapes() -> impl Iterator<Item = (usize, usize, usize)> {
+    attention_shapes().into_iter().chain([(16, 2, 48)])
 }
 
 #[test]
@@ -43,9 +40,9 @@ fn token_kernel(kernel: Kernel) -> Kernel {
 fn attention_tokens_against_its_twin() {
     let g = Gpu::new();
     let mut rng = Rng::new(62);
-    for (nh, nkv, hd) in attention_shapes() {
-        // 255 + 2 and 255 + 5 cross a chunk boundary (n_ctx 257 needs a second chunk) and 3,070 + 5 the kernel switch
-        // (n_ctx 3,073 is past 3,072).
+    for (nh, nkv, hd) in token_shapes() {
+        // 255 + 2 and 255 + 5 cross a chunk boundary (n_ctx 257 needs a second chunk) and 3,070 + 5 crosses 3,072,
+        // where decode's reference kernel changes (the token path does not).
         for n_ctx0 in [1, 255, 256, 1000, 3070, 3072, 5000, 9000] {
             let (kc, vc, kf) = caches(&mut rng, n_ctx0, nkv * hd);
             let (gkc, gvc) = (g.bytes(&u16_bytes(&kc)), g.bytes(&u16_bytes(&vc)));
@@ -84,41 +81,34 @@ fn attention_tokens_against_its_twin() {
                     k.attn_combine_tokens(r, part.addr, y.addr, n_ctx0, tokens, nh, hd, max_split);
                 });
                 let got = g.read(y);
-                // One check for the queries each decode kernel serves, so the evidence names the kernel that ran.
-                let row = nh * hd;
-                let mut i = 0;
-                while i < tokens {
-                    let kernel = attn_decode_kernel(n_ctx0 + i, nh, nkv, hd);
-                    let end = (i..tokens)
-                        .find(|&j| attn_decode_kernel(n_ctx0 + j, nh, nkv, hd) != kernel)
-                        .unwrap_or(tokens);
-                    check(
-                        token_kernel(kernel),
-                        &format!("hd={hd} n_ctx0={n_ctx0} tokens={tokens} queries {i}..{end}"),
-                        &got[i * row..end * row],
-                        &want[i * row..end * row],
-                    );
-                    i = end;
-                }
+                // Named by the kernel that ran, so the evidence says which.
+                check(
+                    attn_tokens_kernel(nh, nkv, hd),
+                    &format!("hd={hd} n_ctx0={n_ctx0} tokens={tokens}"),
+                    &got,
+                    &want[..tokens * nh * hd],
+                );
             }
         }
     }
 }
 
 /// Each query of the token kernels writes the partials and the output one decode step writes at its own length: the
-/// kernel `attn_decode_kernel` chooses, its split count, then `attn_combine` for one query. Reported through `identity`
-/// (a miss is still usable, and the evidence names it); the partials past a query's last chunk must stay untouched.
+/// kernel `attn_decode_kernel` chooses there (which may differ from the token kernel: `attn_decode` up to 3,072
+/// positions against `attn_decode_gqa_tokens`), its split count, then `attn_combine` for one query. Reported through
+/// `identity` (a miss is still usable, and the evidence names it); the partials past a query's last chunk must stay
+/// untouched.
 #[test]
 #[ignore = "needs the GPU"]
 fn attention_tokens_writes_decodes_bits_per_query() {
     let g = Gpu::new();
     let mut rng = Rng::new(63);
-    for (nh, nkv, hd) in attention_shapes() {
+    for (nh, nkv, hd) in token_shapes() {
         let stride = hd + 2;
         for n_ctx0 in [1, 255, 256, 1000, 3070, 3072, 5000, 9000] {
             let (kc, vc, _) = caches(&mut rng, n_ctx0, nkv * hd);
             let (gkc, gvc) = (g.bytes(&u16_bytes(&kc)), g.bytes(&u16_bytes(&vc)));
-            for tokens in [2usize, 5, 16] {
+            for tokens in [2usize, 3, 4, 5, 16] {
                 let q = rand_f32(&mut rng, tokens * nh * hd, -12.0, 12.0);
                 let gq = g.f32s(&q);
                 // A max_split past the need, so the partials' stride isn't the split count.
@@ -199,8 +189,8 @@ fn attention_tokens_writes_decodes_bits_per_query() {
                         "hd={hd} n_ctx0={n_ctx0} tokens={tokens} query {i}: the output isn't finite"
                     );
                     out_ok &= row.iter().zip(&dy).all(|(a, b)| a.to_bits() == b.to_bits());
-                    match attn_decode_kernel(n_ctx, nh, nkv, hd) {
-                        Kernel::AttnDecode => {
+                    match attn_tokens_kernel(nh, nkv, hd) {
+                        Kernel::AttnDecodeTokens => {
                             any_plain = true;
                             plain_ok &= same;
                         }

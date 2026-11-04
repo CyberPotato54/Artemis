@@ -891,11 +891,7 @@ impl Session {
         for i in 0..n {
             let t0 = Instant::now();
             let logits = p.out.read_f32(4 * (i * d.n_vocab) as u64, d.n_vocab);
-            let bad = logits
-                .iter()
-                .enumerate()
-                .find(|(_, v)| !v.is_finite())
-                .map(|(index, &value)| (index, value));
+            let bad = crate::sample::first_non_finite(&logits);
             e.time(CpuPhase::Read, t0);
             if let Some((index, value)) = bad {
                 return Err(Error::NonFinite {

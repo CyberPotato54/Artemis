@@ -19,8 +19,9 @@ fn same_bits(a: &[f32], b: &[f32]) -> bool {
     a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.to_bits() == y.to_bits())
 }
 
-/// The real model's types at its shapes (gate/up Q4_K, down Q5_K, and Q6_K in the last layers), and a mix of the rest
-/// at the tiny model's.
+/// The real model's types at its shapes (gate/up Q4_K, down Q5_K, and Q6_K in the last layers), a K-quant mix whose
+/// gate/up rows have 24 units (32 lanes, 8 of them idle) and whose down rows have 64, and a mix of the rest at the tiny
+/// model's.
 fn layouts() -> Vec<SlotLayout> {
     let real = |down| SlotLayout {
         gate: WType::Q4K,
@@ -32,6 +33,28 @@ fn layouts() -> Vec<SlotLayout> {
     vec![
         real(WType::Q5K),
         real(WType::Q6K),
+        SlotLayout {
+            gate: WType::Q5K,
+            up: WType::Q4K,
+            down: WType::Q5K,
+            n_embd: 768,
+            n_ff: 2048,
+        },
+        // Down rows of 40 units: 32 lanes, a partial second pass (8 lanes), as 24 units' single partial pass.
+        SlotLayout {
+            gate: WType::Q4K,
+            up: WType::Q5K,
+            down: WType::Q6K,
+            n_embd: 768,
+            n_ff: 1280,
+        },
+        SlotLayout {
+            gate: WType::Q5K,
+            up: WType::Q4K,
+            down: WType::Q4K,
+            n_embd: 2048,
+            n_ff: 768,
+        },
         SlotLayout {
             gate: WType::Q8_0,
             up: WType::Bf16,
@@ -188,7 +211,8 @@ fn listed(list: &[u32]) -> Vec<(u32, u32)> {
 
 const N_EXPERT: usize = 20;
 const K: usize = 8;
-const TOKENS: [usize; 4] = [1, 2, 5, 16];
+/// Every count with a specialized pipeline (`tokens::SPECIALIZED_TOKENS`, 2 to 5) and the general pipeline at 1 and 16.
+const TOKENS: [usize; 6] = [1, 2, 3, 4, 5, 16];
 
 #[test]
 #[ignore = "needs the GPU"]

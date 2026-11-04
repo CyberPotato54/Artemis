@@ -799,6 +799,7 @@ pub fn report_json(
             "with_mtp": l.load == Load::WithMtp,
             "seconds": l.info.seconds,
             "cache_slots": l.info.cache_slots,
+            "mtp_expert_slots": l.info.mtp_slots,
             "host_heap_usage_bytes": l.host_heap_usage,
         })).collect::<Vec<_>>(),
     })
@@ -1365,6 +1366,8 @@ time={now}
             info: calibrate::LoadInfo {
                 seconds: 20.0,
                 cache_slots: 112,
+                mtp_slots: 64,
+                mtp_slot_bytes: 121_634_816,
             },
             gpu_uuid: [2; 16],
             host_heap_usage: Some(usage),
@@ -1977,6 +1980,7 @@ time={now}
         assert_eq!(j["scores_tok_s"]["lookup+mtp"], 128.0);
         assert_eq!(j["chosen"]["speculation_enabled"], true);
         assert_eq!(j["loads"][0]["with_mtp"], true);
+        assert_eq!(j["loads"][0]["mtp_expert_slots"], 64);
         assert!(j["why"]["speculation.enabled"].is_string());
         let line = done_line(&t, Path::new("T/tuned.toml"), &effective(&cfg, &choice));
         let LifecycleLine::SetupDone {

@@ -4,6 +4,7 @@
 //! which moves it on between steps with the policy; and the budget watch, which retires and grows chunks.
 //! Swaps and fills change what it holds; `SwapPlanner` tracks that.
 use crate::{
+    mtp_slots::{keep_reserved, leftover_slots},
     policy::{allowance, bank_after_verify, CachePolicy, PolicyStep},
     swap::{Entry, RowState, SwapPlanner},
     timing::CpuPhase,
@@ -195,6 +196,119 @@ pub fn fit_cache<T>(
     fit(false).map(|(n, held)| (n, false, held))
 }
 
+/// What `fit_cache_mtp` settled: the trunk's slots per layer, whether the staging pass was kept, the MTP slots, and
+/// what the two allocators hold.
+pub struct MtpFit<T, M> {
+    pub slots: usize,
+    pub staging: bool,
+    pub mtp_slots: usize,
+    pub held: T,
+    pub mtp: M,
+}
+
+/// `fit_cache` with K-64's MTP slots beside the trunk's cache. `mtp` is (slots asked, bytes a slot); `alloc(n,
+/// staging, m)` allocates the trunk's `n` slots a layer (and the staging area and session, as `fit_cache`'s) with `m`
+/// MTP slots, and `alloc_mtp(m)` the MTP slots alone (0 allocates nothing).
+///
+/// The MTP slots come out of the budget the way the trunk's slots do, never on top of it: first the trunk is fitted
+/// with their bytes held beside the session's, so on a full card it gives up the rows they need (two on the 16 GB
+/// card). That fit is kept while the trunk got every slot it asked for (`requested`, else every expert) or at least
+/// `MTP_TRUNK_FLOOR` (`mtp_slots::keep_reserved`). Otherwise, or when even that fit is refused, the trunk is fitted
+/// alone and keeps every slot it gets that way, and the MTP slots take the whole slots left beside it that keep the
+/// margin and `DRIVER_WORK` free (`leftover_slots`), possibly none. Errors other than the budget are returned.
+#[allow(clippy::too_many_arguments)]
+pub fn fit_cache_mtp<T, M>(
+    start: vk::HeapBudget,
+    session: u64,
+    slot_sizes: &[u64],
+    n_expert: usize,
+    requested: Option<usize>,
+    staging: bool,
+    mtp: (usize, u64),
+    mut alloc: impl FnMut(usize, bool, usize) -> Result<(T, M), vk::Error>,
+    mut alloc_mtp: impl FnMut(usize) -> Result<M, vk::Error>,
+    mut heap: impl FnMut() -> Result<vk::HeapBudget, vk::Error>,
+) -> Result<MtpFit<T, M>, vk::Error> {
+    let (ask, slot) = mtp;
+    let ask = if slot == 0 { 0 } else { ask };
+    let limit = requested.unwrap_or(n_expert).min(n_expert);
+    let mut start = start;
+    if ask > 0 {
+        match fit_cache(
+            start,
+            session.saturating_add(ask as u64 * slot),
+            slot_sizes,
+            n_expert,
+            requested,
+            staging,
+            |n, s| alloc(n, s, ask),
+            &mut heap,
+        ) {
+            Ok((slots, staging, (held, mtp))) => {
+                // `fit_cache` returns at once with no cache and no staging area (`--cache-slots 0`) without checking
+                // the margin, so it is checked here: the MTP slots are never on top of it.
+                let h = heap()?;
+                let margin = h.usage + VRAM_MARGIN + DRIVER_WORK <= h.budget;
+                if keep_reserved(slots, limit) && (margin || slots > 0 || staging) {
+                    return Ok(MtpFit {
+                        slots,
+                        staging,
+                        mtp_slots: ask,
+                        held,
+                        mtp,
+                    });
+                }
+                // The trunk would fall under the floor, or the margin is broken: what it holds is freed here.
+            }
+            // Even the trunk's smallest fit was refused.
+            Err(vk::Error::OutOfBudget { .. }) => {}
+            Err(e) => return Err(e),
+        }
+        start = heap()?;
+    }
+    let (slots, staging, (held, none)) = fit_cache(
+        start,
+        session,
+        slot_sizes,
+        n_expert,
+        requested,
+        staging,
+        |n, s| alloc(n, s, 0),
+        &mut heap,
+    )?;
+    let mut fit = MtpFit {
+        slots,
+        staging,
+        mtp_slots: 0,
+        held,
+        mtp: none,
+    };
+    if ask == 0 {
+        return Ok(fit);
+    }
+    let h = heap()?;
+    let m = leftover_slots(
+        h.budget.saturating_sub(h.usage + VRAM_MARGIN + DRIVER_WORK),
+        slot,
+        ask,
+    );
+    if m > 0 {
+        match alloc_mtp(m) {
+            Ok(mem) => {
+                let h = heap()?;
+                if h.usage + VRAM_MARGIN + DRIVER_WORK <= h.budget {
+                    fit.mtp_slots = m;
+                    fit.mtp = mem;
+                }
+                // Else the driver lowered the budget once they were allocated: `mem` drops, and they are off.
+            }
+            Err(vk::Error::OutOfBudget { .. }) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(fit)
+}
+
 /// What the cache holds and serves.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Stats {
@@ -245,6 +359,14 @@ pub struct Stats {
     /// miss: neither enters `from_vram` or the hit rate.
     pub cpu_timeouts: u64,
     pub cpu_misses: u64,
+    /// K-64's MTP slots (`mtp_slots.rs`): how many the load gave `blk.40` (0 without the MTP or without room) and
+    /// their VRAM; the block's routed-expert reads in draft passes served from them (`mtp_hits`) and from host memory
+    /// (`mtp_misses`), counted apart from the trunk's `hits` and `misses`; and the experts copied into them.
+    pub mtp_slots: usize,
+    pub mtp_slot_bytes: u64,
+    pub mtp_hits: u64,
+    pub mtp_misses: u64,
+    pub mtp_fills: u64,
 }
 
 impl Stats {
@@ -1017,6 +1139,7 @@ pub(crate) fn forced_swaps(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mtp_slots::MTP_TRUNK_FLOOR;
     use crate::session::session_sizes;
     use kernels::dispatch::SlotLayout;
     use qwen36::{dims::Dims, quant::WType};
@@ -1380,6 +1503,166 @@ mod tests {
         .unwrap();
         assert_eq!(n, 0);
         assert!(rounds.get() < 40, "{} rounds", rounds.get());
+    }
+
+    /// One `blk.40` expert slot on the real model: Q4_K gate and up, Q5_K down.
+    const MTP_SLOT: u64 = 1_900_544;
+
+    impl FakeHeap {
+        /// `fit_cache_mtp` on this heap with `ask` MTP slots: (trunk slots, staging kept, MTP slots), checking the
+        /// margin is kept with everything held and that every allocation is freed after.
+        fn fit_mtp(
+            &self,
+            ctx: usize,
+            requested: Option<usize>,
+            staging: bool,
+            ask: usize,
+        ) -> (usize, bool, usize) {
+            let session = if ctx > 0 {
+                crate::session_bytes(&Dims::QWEN36, ctx)
+            } else {
+                0
+            };
+            let one = |m: usize| -> Result<Option<Held<'_>>, vk::Error> {
+                if m == 0 {
+                    return Ok(None);
+                }
+                let (h, size) = (self.heap(), m as u64 * MTP_SLOT);
+                if h.usage + size > h.budget {
+                    return Err(vk::Error::OutOfBudget {
+                        what: "the fake MTP slots".into(),
+                        want: size,
+                        budget: h.budget,
+                        usage: h.usage,
+                        host: false,
+                    });
+                }
+                self.usage.set(h.usage + size);
+                Ok(Some(Held(self, size)))
+            };
+            let fit = fit_cache_mtp(
+                self.heap(),
+                session,
+                &real_sizes(),
+                256,
+                requested,
+                staging,
+                (ask, MTP_SLOT),
+                |n, staged, m| {
+                    let mtp = one(m)?;
+                    Ok((self.alloc(n, staged, ctx)?, mtp))
+                },
+                one,
+                || Ok(self.heap()),
+            )
+            .unwrap();
+            let h = self.heap();
+            assert!(
+                h.usage + VRAM_MARGIN + DRIVER_WORK <= h.budget,
+                "{} + {} slots: {h:?}",
+                fit.slots,
+                fit.mtp_slots
+            );
+            assert_eq!(
+                fit.mtp.as_ref().map_or(0, |m| m.1),
+                fit.mtp_slots as u64 * MTP_SLOT
+            );
+            drop(fit.held);
+            drop(fit.mtp);
+            assert_eq!(self.usage.get(), self.start, "every allocation is freed");
+            (fit.slots, fit.staging, fit.mtp_slots)
+        }
+    }
+
+    #[test]
+    fn the_mtp_slots_come_out_of_the_cache_at_the_16_gb_default() {
+        // ctx 65,536 with staging: 137 trunk slots alone with 33 MiB to spare at the lower budget. The 64 MTP slots'
+        // 116 MiB take two trunk slots (each slot less frees a row less two staged experts, 69 MiB): 135.
+        assert_eq!(FakeHeap::new().fit(65_536, None, true), (137, true, 2));
+        assert_eq!(
+            FakeHeap::new().fit_mtp(65_536, None, true, 64),
+            (135, true, 64)
+        );
+        // Without staging: 143 alone with 59 MiB to spare; a slot less frees a whole row (73 MiB), so one goes: 142.
+        assert_eq!(
+            FakeHeap::new().fit_mtp(65_536, None, false, 64),
+            (142, false, 64)
+        );
+        // Asked for none: the fit is the plain one.
+        assert_eq!(
+            FakeHeap::new().fit_mtp(65_536, None, true, 0),
+            (137, true, 0)
+        );
+    }
+
+    #[test]
+    fn the_shrunk_modes_keep_every_trunk_slot_beside_the_mtp_slots() {
+        // serve-shrunk's 85 and 30 slots a layer leave room: the trunk gets all it asked for and the MTP slots all 64.
+        for slots in [85, 30, 0] {
+            assert_eq!(
+                FakeHeap::new().fit_mtp(65_536, Some(slots), true, 64),
+                (slots, true, 64),
+                "{slots} slots"
+            );
+        }
+    }
+
+    #[test]
+    fn with_less_room_the_trunk_keeps_its_slots_and_the_mtp_slots_take_what_is_left() {
+        // A smaller card's room: the trunk with the MTP slots held would fall under the floor, so it is sized
+        // without them and keeps every slot it had alone; the MTP slots take what is left beside it.
+        // 9,000 MiB in use: 52 trunk slots alone, 50 with the MTP slots held, still at the floor or past it: kept.
+        assert_eq!(FakeHeap::at(9_000 * MIB).fit(4_096, None, true).0, 52);
+        assert_eq!(
+            FakeHeap::at(9_000 * MIB).fit_mtp(4_096, None, true, 64),
+            (50, true, 64)
+        );
+        for start in [10_000 * MIB, 11_000 * MIB, 12_000 * MIB] {
+            let alone = FakeHeap::at(start).fit(4_096, None, true);
+            let (n, staged, m) = FakeHeap::at(start).fit_mtp(4_096, None, true, 64);
+            assert!(
+                alone.0 < MTP_TRUNK_FLOOR + 2,
+                "{start}: {alone:?} is not a small card"
+            );
+            assert_eq!(
+                (n, staged),
+                (alone.0, alone.1),
+                "{start}: the trunk keeps its slots"
+            );
+            assert!(m < 64, "{start}: {m} MTP slots");
+        }
+        // 13,000 MiB in use: 8 trunk slots without staging, and the 38 MiB past their whole rows hold 20 MTP slots.
+        assert_eq!(
+            FakeHeap::at(13_000 * MIB).fit(4_096, None, true),
+            (8, false, 2)
+        );
+        assert_eq!(
+            FakeHeap::at(13_000 * MIB).fit_mtp(4_096, None, true, 64),
+            (8, false, 20)
+        );
+        // Room for no trunk slot and one byte short of an MTP slot: they are off, and the load goes on.
+        let full = 14_339 * MIB
+            - crate::session_bytes(&Dims::QWEN36, 4_096)
+            - VRAM_MARGIN
+            - DRIVER_WORK
+            - (MTP_SLOT - 1);
+        assert_eq!(
+            FakeHeap::at(full).fit_mtp(4_096, None, true, 64),
+            (0, false, 0)
+        );
+    }
+
+    #[test]
+    fn no_cache_slots_still_keep_the_margin_beside_the_mtp_slots() {
+        // `--cache-slots 0` without staging: `fit_cache` returns at once with no cache and no margin check, so the
+        // reserved fit would keep all 64 MTP slots even where they leave less than the margin and `DRIVER_WORK`
+        // free. Here 32 slots' bytes are free beside the margin: the 64 are allocated (they fit the budget) and break
+        // the margin, so they are dropped and the 32 that keep it are kept (`fit_mtp` checks the margin and that
+        // everything is freed).
+        let session = crate::session_bytes(&Dims::QWEN36, 4_096);
+        let start = 14_339 * MIB - session - VRAM_MARGIN - DRIVER_WORK - 32 * MTP_SLOT;
+        let (n, staged, m) = FakeHeap::at(start).fit_mtp(4_096, Some(0), false, 64);
+        assert_eq!((n, staged, m), (0, false, 32));
     }
 
     #[test]

@@ -5,7 +5,7 @@
 //! decode would use: the outputs are decode's `[k][...]` with a token index in front.
 use super::MAX_TOKENS;
 use crate::{
-    dispatch::{groups, SlotLayout},
+    dispatch::{expert_rows, groups, SlotLayout},
     wtype_code, Kernel, Kernels,
 };
 use vk::Recorder;
@@ -40,8 +40,11 @@ pub struct ExpertsGateUpTokensPush {
     pub up_off: u32,
     pub layer: u32,
     pub k: u32,
+    /// +0.0, the tree's added zero on rows of at most 16 units (`tree32.glsl`), as in `ExpertsGateUpPush`.
+    pub zero: f32,
+    pub pad: u32,
 }
-push_constants!(ExpertsGateUpTokensPush: u64, u64, u64, u64, u64, u64, u32, u32, u32, u32, u32, u32, u32, u32);
+push_constants!(ExpertsGateUpTokensPush: u64, u64, u64, u64, u64, u64, u32, u32, u32, u32, u32, u32, u32, u32, f32, u32);
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -59,15 +62,16 @@ pub struct ExpertsDownTokensPush {
     pub down_off: u32,
     pub layer: u32,
     pub k: u32,
-    pub pad: u32,
+    /// +0.0, the tree's added zero on rows of at most 16 units (`tree32.glsl`), as in `ExpertsDownPush`.
+    pub zero: f32,
 }
-push_constants!(ExpertsDownTokensPush: u64, u64, u64, u64, u64, u64, u32, u32, u32, u32, u32, u32, u32, u32);
+push_constants!(ExpertsDownTokensPush: u64, u64, u64, u64, u64, u64, u32, u32, u32, u32, u32, u32, u32, f32);
 
 // Pushes carry no implicit padding: `Recorder` hands the struct's bytes to Vulkan.
 const _: () = {
     use std::mem::size_of;
     assert!(size_of::<MoeUniquePush>() == 2 * 8 + 2 * 4);
-    assert!(size_of::<ExpertsGateUpTokensPush>() == 6 * 8 + 8 * 4);
+    assert!(size_of::<ExpertsGateUpTokensPush>() == 6 * 8 + 10 * 4);
     assert!(size_of::<ExpertsDownTokensPush>() == 6 * 8 + 8 * 4);
 };
 
@@ -78,7 +82,8 @@ fn check_shape(what: &str, tokens: usize, k: usize) {
         "{what}: {tokens} tokens; 1 to {MAX_TOKENS}"
     );
     // The bounds above already imply `tokens * k <= MAX_PAIRS` (a const assert below pins `MAX_TOKENS * 16`), so the
-    // second condition cannot fire today; it stays as the statement of the kernels' limit, for a later change to either.
+    // second condition cannot fire today; it stays as the statement of the kernels' limit, for a later change to
+    // either.
     assert!(
         (1..=16).contains(&k) && tokens * k <= MAX_PAIRS,
         "{what}: {tokens} tokens of {k} choices; 1 to 16 choices, at most {MAX_PAIRS} in all"
@@ -106,9 +111,11 @@ impl Kernels {
 
     /// `y` (`[tokens][k][n_ff]`) ← each routed expert's `silu_det(gate·x[i]) ⊙ (up·x[i])` for every token `i` that
     /// chose it, reading layer `layer`'s entries of `table` and each distinct expert once. `ids` is `[tokens][k]`,
-    /// `list` what `moe_unique` wrote for them, `x` `[tokens][n_embd]`. Grid `[ceil(n_ff/8), tokens·k]`: a workgroup
-    /// whose unique index is past the list's count exits. An unusable slot gives NaN and `refuse(status, …)`, as
-    /// `experts_gate_up` does (there is no CPU path here: speculation refuses the CPU share).
+    /// `list` what `moe_unique` wrote for them, `x` `[tokens][n_embd]`. Grid `[ceil(n_ff / expert_rows(n_embd)),
+    /// tokens·k]`, decode's row blocks: a workgroup whose unique index is past the list's count exits. 2 to 5 tokens
+    /// run a pipeline specialized to the count (`SPECIALIZED_TOKENS`), others the general one. An unusable slot gives
+    /// NaN and `refuse(status, …)`, as `experts_gate_up` does (there is no CPU path here: speculation refuses the
+    /// CPU share).
     #[allow(clippy::too_many_arguments)]
     pub fn experts_gate_up_tokens(
         &self,
@@ -152,11 +159,17 @@ impl Kernels {
             up_off: lay.up_offset() as u32,
             layer: layer as u32,
             k: k as u32,
+            zero: 0.0,
+            pad: 0,
         };
         r.dispatch(
-            self.pipe(Kernel::ExpertsGateUpTokens),
+            self.pipe_tokens(Kernel::ExpertsGateUpTokens, tokens),
             &push,
-            [groups(lay.n_ff, 8), groups(tokens * k, 1), 1],
+            [
+                groups(lay.n_ff, expert_rows(lay.n_embd)),
+                groups(tokens * k, 1),
+                1,
+            ],
         );
     }
 
@@ -205,12 +218,16 @@ impl Kernels {
             down_off: lay.down_offset() as u32,
             layer: layer as u32,
             k: k as u32,
-            pad: 0,
+            zero: 0.0,
         };
         r.dispatch(
-            self.pipe(Kernel::ExpertsDownTokens),
+            self.pipe_tokens(Kernel::ExpertsDownTokens, tokens),
             &push,
-            [groups(lay.n_embd, 8), groups(tokens * k, 1), 1],
+            [
+                groups(lay.n_embd, expert_rows(lay.n_ff)),
+                groups(tokens * k, 1),
+                1,
+            ],
         );
     }
 }

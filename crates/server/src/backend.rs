@@ -248,6 +248,8 @@ pub struct BackendStats {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct CacheCounters {
     pub slots_per_layer: u64,
+    /// The MTP block's VRAM expert slots this load got (K-64); 0 without the MTP or without room.
+    pub mtp_expert_slots: u64,
     pub hits: u64,
     pub misses: u64,
     pub staged: u64,
@@ -433,6 +435,7 @@ mod tests {
             loads: 2,
             cache: Some(CacheCounters {
                 cpu_timeouts: 3,
+                mtp_expert_slots: 64,
                 ..CacheCounters::default()
             }),
             spec: Some(SpecCounters {
@@ -474,8 +477,10 @@ mod tests {
         }
         assert_eq!(v["loads"], 2);
         assert_eq!(v["cache"]["cpu_timeouts"], 3);
+        assert_eq!(v["cache"]["mtp_expert_slots"], 64);
         for key in [
             "slots_per_layer",
+            "mtp_expert_slots",
             "hits",
             "misses",
             "staged",

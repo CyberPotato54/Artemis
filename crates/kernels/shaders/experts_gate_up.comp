@@ -1,18 +1,21 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 #include "common.glsl"
 #include "silu_det.glsl"
 #include "quant.glsl"
 #include "slots.glsl"
 #include "mbox.glsl"
-#define RED_ROWS 8u
-#define RED_N 32u
-#include "reduce.glsl"
+#include "tree32.glsl"
 
-// The routed experts' gate and up projections and SwiGLU: workgroup (x, j) computes rows
-// 8x .. 8x + 8 of routed expert j = ids[j], reading its weights through the slot table at whatever address the entry
-// holds. Each row's gate and up dot products use matvec's layout (unit_dot per lane, then the tree).
-// y[j][row] = silu_det(gate·x) · (up·x).
+// The routed experts' gate and up projections and SwiGLU: y[j][row] = silu_det(gate·x) · (up·x) for routed expert
+// j = ids[j], reading its weights through the slot table at whatever address the entry holds. Each row's gate and up
+// dot products use matvec's layout: lane l adds units l, l + 32, ... in order (lane_sum), then red_sum's tree over 32
+// lanes, done by subgroup shuffles (tree32.glsl) on a pipeline pinned to subgroups of 32.
+//
+// Layout (kernels::dispatch::expert_rows): EXPERT_WAVES subgroups of 32 lanes, each lane on one row. A row of at
+// most 16 units (n_embd <= 512) takes 16 lanes, so a subgroup carries two rows; a longer row takes all 32.
 //
 // serve: 0 refuses a CPU entry (NaN and the status, as before the CPU path); 1 skips it (writes +0, no
 // refuse); 2 is the fallback pair, which computes a CPU entry from its host address only when this token's wait did
@@ -20,7 +23,8 @@
 // out; or the layer's done flag is not seq) and writes nothing otherwise: a late answer is wasted, never trusted, and
 // the HOST and VRAM entries were computed by the serve-1 pair already. The flag reads are idempotent, so every
 // workgroup may make them.
-layout(local_size_x = 32, local_size_y = 8) in;
+const uint EXPERT_WAVES = 8u;
+layout(local_size_x = 256) in;
 layout(push_constant) uniform Push {
     uint64_t table;
     uint64_t ids;
@@ -37,11 +41,16 @@ layout(push_constant) uniform Push {
     uint layer;
     uint seq;
     uint serve;
+    float zero; // +0.0, tree32's zero
 } p;
 
 void main() {
-    uint lane = gl_LocalInvocationID.x, r = gl_LocalInvocationID.y;
-    uint row = gl_WorkGroupID.x * 8u + r;
+    uint lane = gl_SubgroupInvocationID, wave = gl_SubgroupID;
+    uint units = p.n_embd / 32u;
+    uint lpr = units <= 16u ? 16u : 32u;
+    uint rpw = 32u / lpr;
+    uint vl = lane % lpr;
+    uint row = gl_WorkGroupID.x * (EXPERT_WAVES * rpw) + wave * rpw + lane / lpr;
     uint j = gl_WorkGroupID.y;
     uint e = uint(F32s(p.ids).v[j]);
     Slot s = slot_at(p.table, p.layer_base + e);
@@ -52,19 +61,24 @@ void main() {
         uint dn = atomicOr(m.v[done_word(p.layer)], 0u);
         as_host = st != 0u || dn != p.seq;
     }
-    bool compute = row < p.n_ff && ((p.serve != 2u && usable(s)) || as_host);
+    bool compute = (p.serve != 2u && usable(s)) || as_host;
     float g = 0.0, u = 0.0;
     if (compute) {
-        uint64_t gr = s.addr + uint64_t(row) * uint64_t(row_bytes(p.gate_type, p.n_embd));
-        uint64_t ur = s.addr + uint64_t(p.up_off) + uint64_t(row) * uint64_t(row_bytes(p.up_type, p.n_embd));
-        for (uint q = lane; q < p.n_embd / 32u; q += 32u) {
-            g += unit_dot(p.gate_type, gr, q, p.x);
-            u += unit_dot(p.up_type, ur, q, p.x);
+        // A row past the end reads the last row and is never written: every lane reaches the shuffles.
+        uint r = min(row, p.n_ff - 1u);
+        uint64_t gr = s.addr + uint64_t(r) * uint64_t(row_bytes(p.gate_type, p.n_embd));
+        uint64_t ur = s.addr + uint64_t(p.up_off) + uint64_t(r) * uint64_t(row_bytes(p.up_type, p.n_embd));
+        if (p.gate_type == T_Q4_K && p.up_type == T_Q4_K) {
+            g = lane_sum(T_Q4_K, gr, vl, units, p.x);
+            u = lane_sum(T_Q4_K, ur, vl, units, p.x);
+        } else {
+            g = lane_sum(p.gate_type, gr, vl, units, p.x);
+            u = lane_sum(p.up_type, ur, vl, units, p.x);
         }
     }
-    float gs = red_sum(r, lane, g);
-    float us = red_sum(r, lane, u);
-    if (lane == 0u && row < p.n_ff) {
+    float gs = tree32(g, lpr, p.zero);
+    float us = tree32(u, lpr, p.zero);
+    if (vl == 0u && row < p.n_ff) {
         if (p.serve == 2u) {
             if (as_host) {
                 F32s(p.y).v[j * p.n_ff + row] = silu_det(gs) * us;

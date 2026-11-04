@@ -5,14 +5,16 @@
 
 // attn_decode_gqa over up to 16 queries: attn_decode_tokens for long contexts. Query i,
 // i in [first, tokens), is the query at position n_ctx0 + i - 1 and attends the n_ctx = n_ctx0 + i cached positions
-// 0 ..= n_ctx0 + i - 1 (its own key included). Workgroup (i - first, s, kvh) does attn_decode_gqa's arithmetic
+// 0 ..= n_ctx0 + i - 1 (its own key included). Workgroup (i - first, kvh, s) does attn_decode_gqa's arithmetic
 // operation for operation for query i when 256s < n_ctx (which is attn_decode's, pinned by
-// the_gqa_attention_writes_attn_decodes_bits), with its shared-memory K tiles: it covers cached positions
-// [256s, 256s + 256) for every query head that reads KV head kvh (heads kvh·group .. kvh·group + group), so each
-// cached K and V row is read once per query rather than once per query head. Position 256s + j is scored for head g
-// as (Σ_i k_i·q_i, i in order)·scale by thread 32g + (j % 32); the chunk's max m and l = Σ exp(score − m) come from
-// the same trees as reduce.glsl's red_max and red_sum (lane pairs halving their stride from 128), the group's heads
-// side by side; then thread d sums exp(score_j − m)·v_j[d] over the chunk's positions in order. Writes
+// the_gqa_attention_writes_attn_decodes_bits): it covers cached positions [256s, 256s + 256) for every query head that
+// reads KV head kvh (heads kvh·group .. kvh·group + group), so each cached K and V row is read once per query rather
+// than once per query head; the grid puts a chunk's queries and KV heads side by side, so the workgroups that read
+// one chunk's rows run together. Position 256s + j is scored for head g as (Σ_i k_i·q_i, i in order)·scale by thread
+// 32g + (j % 32), two positions at a time on each query value read, as K goes by in shared-memory tiles; the chunk's
+// max m and l = Σ exp(score − m) come from the same trees as reduce.glsl's red_max and red_sum (lane pairs halving
+// their stride from 128), the group's heads side by side; then thread 32g + o sums exp(score_j − m)·v_j[d] for the 8
+// dimensions d = 8o .. 8o + 7 of head g over the chunk's positions in order, reading 16 bytes of V a position. Writes
 // [m, l, acc[0..hd]] per (query, head, chunk) to `part`, [tokens][n_head][max_split][hd + 2], for
 // attn_combine_tokens. group is at most GMAX and hd a multiple of 32 and at most 256 (dispatch.rs checks both); heads
 // past group compute on zero queries and write nothing.
@@ -20,6 +22,9 @@
 layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Halves8 { uvec4 v[]; };
 
 layout(local_size_x = 256) in;
+// Nonzero skips the V pass (the partials' acc stays zero): a timing-only build, for attn_decode_speed's K-pass
+// figure. The engine builds the default, 0.
+layout(constant_id = 0) const uint K_ONLY = 0u;
 layout(push_constant) uniform Push {
     uint64_t q;
     uint64_t kc;
@@ -36,37 +41,55 @@ layout(push_constant) uniform Push {
 } p;
 
 // Head g's 256 values at qw[256g ..]: the group's queries, then the scores and the trees, then the chunk's weights
-// exp(score − m). kt holds one K tile: 32 positions × 128 values of f16, 16 bytes a slot, slot c of position r at
-// 16r + (c ^ (r & 15)) so a wave reading one slot of 32 positions spreads over the banks. 8,192 + 8,192 = 16,384 bytes
+// exp(score − m). kt holds one K tile: 64 positions × 64 values of f16, 16 bytes a slot, slot c of position r at
+// 8r + (c ^ (r & 7)) so a wave reading one slot of 32 positions spreads over the banks. 8,192 + 8,192 = 16,384 bytes
 // (ATTN_GQA_SHARED_BYTES in dispatch.rs), Vulkan's guarantee.
 shared float qw[GMAX * 256];
 shared uvec4 kt[512];
 
-// a += k_i·q_g[i] for the 8 values of row chunk c (16 bytes, w), i in order: one head's share of attn_decode's dot.
-void k_dot(uvec4 w, uint c, uint g, inout float a) {
-    vec2 x = unpackHalf2x16(w.x), y = unpackHalf2x16(w.y), z = unpackHalf2x16(w.z), u = unpackHalf2x16(w.w);
-    float kk[8] = float[8](x.x, x.y, y.x, y.y, z.x, z.y, u.x, u.y);
+// a0 += k0_i·q_g[i] and a1 += k1_i·q_g[i] for the 8 values of row chunk c of two positions (16 bytes each, w0 and
+// w1), i in order: one head's share of attn_decode's dot for each position.
+void k_dot2(uvec4 w0, uvec4 w1, uint c, uint g, inout float a0, inout float a1) {
+    vec2 x = unpackHalf2x16(w0.x), y = unpackHalf2x16(w0.y), z = unpackHalf2x16(w0.z), u = unpackHalf2x16(w0.w);
+    float k0[8] = float[8](x.x, x.y, y.x, y.y, z.x, z.y, u.x, u.y);
+    x = unpackHalf2x16(w1.x), y = unpackHalf2x16(w1.y), z = unpackHalf2x16(w1.z), u = unpackHalf2x16(w1.w);
+    float k1[8] = float[8](x.x, x.y, y.x, y.y, z.x, z.y, u.x, u.y);
     [[unroll]] for (uint i = 0u; i < 8u; i++) {
-        a += kk[i] * qw[g * 256u + 8u * c + i];
+        float qv = qw[g * 256u + 8u * c + i];
+        a0 += k0[i] * qv;
+        a1 += k1[i] * qv;
     }
 }
 
-// Thread t's two 16-byte slots of K tile n (positions 32·(n / nhalf) .., values 128·(n % nhalf) ..), read so that 16
-// neighbouring lanes take 256 contiguous bytes of one position; zeros past the chunk's positions or the head.
-void k_tile(uint n, uint nhalf, uint t0, uint nt, uint kvh, uint t, out uvec4 w[2]) {
-    uint b = n / nhalf, hf = n % nhalf;
+// av[k] += w·v[k] for the 8 values of one position's V slot (16 bytes, x), k in order.
+void v_dot(uvec4 x, float w, inout float av[8]) {
+    vec2 a = unpackHalf2x16(x.x), b = unpackHalf2x16(x.y), c = unpackHalf2x16(x.z), d = unpackHalf2x16(x.w);
+    av[0] += w * a.x;
+    av[1] += w * a.y;
+    av[2] += w * b.x;
+    av[3] += w * b.y;
+    av[4] += w * c.x;
+    av[5] += w * c.y;
+    av[6] += w * d.x;
+    av[7] += w * d.y;
+}
+
+// Thread t's two 16-byte slots of K tile n (positions 64·(n / nqt) .., values 64·(n % nqt) ..), read so that 8
+// neighbouring lanes take 128 contiguous bytes of one position; zeros past the chunk's positions or the head.
+void k_tile(uint n, uint nqt, uint t0, uint nt, uint kvh, uint t, out uvec4 w[2]) {
+    uint b = n / nqt, qt = n % nqt;
     [[unroll]] for (uint k = 0u; k < 2u; k++) {
-        uint u = t + 256u * k, r = u >> 4u, c = u & 15u;
-        uint row = 32u * b + r;
+        uint u = t + 256u * k, r = u >> 3u, c = u & 7u;
+        uint row = 64u * b + r;
         w[k] = uvec4(0u);
-        if (row < nt && 128u * hf + 8u * c < p.hd) {
-            w[k] = Halves8(p.kc + uint64_t(2u * ((t0 + row) * p.kv_width + kvh * p.hd))).v[16u * hf + c];
+        if (row < nt && 64u * qt + 8u * c < p.hd) {
+            w[k] = Halves8(p.kc + uint64_t(2u * ((t0 + row) * p.kv_width + kvh * p.hd))).v[8u * qt + c];
         }
     }
 }
 
 void main() {
-    uint qi = p.first + gl_WorkGroupID.x, s = gl_WorkGroupID.y, kvh = gl_WorkGroupID.z, t = gl_LocalInvocationID.x;
+    uint qi = p.first + gl_WorkGroupID.x, s = gl_WorkGroupID.z, kvh = gl_WorkGroupID.y, t = gl_LocalInvocationID.x;
     uint h0 = kvh * p.group;
     uint n_head = p.group * (p.kv_width / p.hd);
     uint t0 = 256u * s;
@@ -80,39 +103,42 @@ void main() {
         qw[g * 256u + t] = g < p.group && t < p.hd ? F32s(p.q).v[(qi * n_head + h0 + g) * p.hd + t] : 0.0;
     }
     barrier();
-    // The dot products go by K tiles of 32 positions: thread t = 32g + r takes position 32b + r of block b for head
-    // g, the same chain of multiply-and-adds attn_decode's thread runs for that position and head. Each tile is
-    // loaded into registers while the previous one is summed.
+    // The dot products go by K tiles of 64 positions × 64 values: thread t = 32g + r takes positions 64b + r and
+    // 64b + 32 + r of block b for head g (rows 32·2b + r and 32·(2b + 1) + r), the same chain of multiply-and-adds
+    // attn_decode's thread runs for each position and head, the two side by side on each query value read. Each
+    // tile is loaded into registers while the previous one is summed.
     uint r = t & 31u, gh = t >> 5u;
-    uint nb = (nt + 31u) / 32u, nhalf = (p.hd + 127u) / 128u, ntile = nb * nhalf;
+    uint nb = (nt + 63u) / 64u, nqt = (p.hd + 63u) / 64u, ntile = nb * nqt;
     uvec4 pre[2];
-    k_tile(0u, nhalf, t0, nt, kvh, t, pre);
+    k_tile(0u, nqt, t0, nt, kvh, t, pre);
     uint n = 0u;
     float sb[8];
-    [[unroll]] for (uint b = 0u; b < 8u; b++) {
-        float a = 0.0;
+    [[unroll]] for (uint b = 0u; b < 4u; b++) {
+        float a0 = 0.0, a1 = 0.0;
         if (b < nb) {
-            for (uint hf = 0u; hf < nhalf; hf++) {
+            for (uint qt = 0u; qt < nqt; qt++) {
                 // Every thread is done with the last tile.
                 barrier();
                 [[unroll]] for (uint k = 0u; k < 2u; k++) {
-                    uint u = t + 256u * k, rr = u >> 4u;
-                    kt[16u * rr + ((u & 15u) ^ (rr & 15u))] = pre[k];
+                    uint u = t + 256u * k, rr = u >> 3u;
+                    kt[8u * rr + ((u & 7u) ^ (rr & 7u))] = pre[k];
                 }
                 barrier();
                 if (n + 1u < ntile) {
-                    k_tile(n + 1u, nhalf, t0, nt, kvh, t, pre);
+                    k_tile(n + 1u, nqt, t0, nt, kvh, t, pre);
                 }
                 n++;
-                uint nch = min(16u, (p.hd - 128u * hf) / 8u);
-                [[unroll]] for (uint c = 0u; c < 16u; c++) {
+                uint nch = min(8u, (p.hd - 64u * qt) / 8u);
+                [[unroll]] for (uint c = 0u; c < 8u; c++) {
                     if (c < nch) {
-                        k_dot(kt[16u * r + (c ^ (r & 15u))], 16u * hf + c, gh, a);
+                        k_dot2(kt[8u * r + (c ^ (r & 7u))], kt[8u * (r + 32u) + (c ^ (r & 7u))], 8u * qt + c, gh,
+                               a0, a1);
                     }
                 }
             }
         }
-        sb[b] = a;
+        sb[2u * b] = a0;
+        sb[2u * b + 1u] = a1;
     }
     // Every thread is done with the queries: qw takes the scores, then thread t takes position t's.
     barrier();
@@ -159,34 +185,35 @@ void main() {
         qw[g * 256u + t] = e[g];
     }
     barrier();
-    if (t < p.hd) {
-        float av[GMAX];
-        [[unroll]] for (uint g = 0u; g < GMAX; g++) {
-            av[g] = 0.0;
+    // Thread 32g + o sums dimensions 8o .. 8o + 7 of head g (16 bytes a position), each over the chunk's positions in
+    // order: the same chain of multiply-and-adds as attn_decode's thread for that dimension and head.
+    uint o = t & 31u;
+    if (8u * o < p.hd) {
+        float av[8];
+        [[unroll]] for (uint k = 0u; k < 8u; k++) {
+            av[k] = 0.0;
         }
-        U16s vr = U16s(p.vc + uint64_t(2u * (t0 * p.kv_width + kvh * p.hd + t)));
-        // Sixteen positions' values loaded at a time, then summed in order.
+        Halves8 vr = Halves8(p.vc + uint64_t(2u * (t0 * p.kv_width + kvh * p.hd)));
+        uint rs = p.kv_width / 8u;
+        uint nv = K_ONLY == 0u ? nt : 0u;
+        // Eight positions' values loaded at a time, then summed in order.
         uint j = 0u;
-        for (; j + 16u <= nt; j += 16u) {
-            float v[16];
-            [[unroll]] for (uint u = 0u; u < 16u; u++) {
-                v[u] = unpackHalf2x16(uint(vr.v[(j + u) * p.kv_width])).x;
+        for (; j + 8u <= nv; j += 8u) {
+            uvec4 v[8];
+            [[unroll]] for (uint u = 0u; u < 8u; u++) {
+                v[u] = vr.v[(j + u) * rs + o];
             }
-            [[unroll]] for (uint u = 0u; u < 16u; u++) {
-                [[unroll]] for (uint g = 0u; g < GMAX; g++) {
-                    av[g] += qw[g * 256u + j + u] * v[u];
-                }
+            [[unroll]] for (uint u = 0u; u < 8u; u++) {
+                v_dot(v[u], qw[gh * 256u + j + u], av);
             }
         }
-        for (; j < nt; j++) {
-            float v = unpackHalf2x16(uint(vr.v[j * p.kv_width])).x;
-            [[unroll]] for (uint g = 0u; g < GMAX; g++) {
-                av[g] += qw[g * 256u + j] * v;
-            }
+        for (; j < nv; j++) {
+            v_dot(vr.v[j * rs + o], qw[gh * 256u + j], av);
         }
-        [[unroll]] for (uint g = 0u; g < GMAX; g++) {
-            if (g < p.group) {
-                F32s(p.part + uint64_t(4u * ((qi * n_head + h0 + g) * p.max_split + s) * (p.hd + 2u))).v[2u + t] = av[g];
+        if (gh < p.group) {
+            F32s dst = F32s(p.part + uint64_t(4u * ((qi * n_head + h0 + gh) * p.max_split + s) * (p.hd + 2u)));
+            [[unroll]] for (uint k = 0u; k < 8u; k++) {
+                dst.v[2u + 8u * o + k] = av[k];
             }
         }
     }

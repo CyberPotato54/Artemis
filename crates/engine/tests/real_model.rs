@@ -358,13 +358,14 @@ fn the_cache_lends_shrinks_and_grows_on_the_real_model() {
 #[test]
 #[ignore = "needs the GPU and the real model"]
 fn the_real_models_verify_rows_match_decode_across_3072() {
-    // On the real model: the long golden prompt cut at 3,068 tokens, then its next 8 verified in one
-    // pass. The queries see 3,069 to 3,076 positions, so the step straddles `ATTN_GQA_FROM` (3,072): the first four run
-    // `attn_decode_tokens` and the last four `attn_decode_gqa_tokens`, as decode would choose per query. Each row is
-    // checked against the same tokens decoded one at a time, with `prefill_real.rs`'s bounds, because the difference is
-    // the same kind (`gdn_seq` against `gdn_step`): the rows' relative L2 averages at most 1e-3 and each is within
-    // 5e-2, and the committed state within 1e-3. A row whose routes differ from decode's is a router near-tie: it and
-    // the rows after it are reported, not judged. Bit equality is reported (`identity`), never asserted.
+    // On the real model: the long golden prompt cut at 3,068 tokens, then its next 8 verified in one pass. The queries
+    // see 3,069 to 3,076 positions, so decode's kernel changes at `ATTN_GQA_FROM` (3,072): the first four rows are
+    // checked against `attn_decode` and the last four against `attn_decode_gqa`, while the verify step runs
+    // `attn_decode_gqa_tokens` for all eight (`attn_tokens_kernel`). Each row is checked against the same tokens
+    // decoded one at a time, with `prefill_real.rs`'s bounds, because the difference is the same kind (`gdn_seq`
+    // against `gdn_step`): the rows' relative L2 averages at most 1e-3 and each is within 5e-2, and the committed state
+    // within 1e-3. A row whose routes differ from decode's is a router near-tie: it and the rows after it are reported,
+    // not judged. Bit equality is reported (`identity`), never asserted.
     const FORCED_MEAN: f64 = 1e-3;
     const FORCED_WORST: f64 = 5e-2;
     const STATE: f64 = 1e-3;

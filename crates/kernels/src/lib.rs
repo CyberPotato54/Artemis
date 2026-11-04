@@ -3,9 +3,11 @@
 //! checks every kernel against its twin within the tolerance stated here; CI checks every twin against the
 //! reference's operations (`qwen36::ops`).
 //!
-//! Every kernel takes buffer device addresses through push constants. No kernel assumes a subgroup size: reductions
-//! are shared-memory trees over fixed workgroup sizes, so their order depends only on shapes. There are no float
-//! atomics.
+//! Every kernel takes buffer device addresses through push constants. Reductions are trees over fixed lane counts, so
+//! their order depends only on shapes: shared-memory trees over fixed workgroup sizes, or, in the decode matvecs and
+//! the routed experts' decode and token kernels, the same tree by subgroup shuffles on a pipeline pinned to subgroups
+//! of 32 (`Kernel::subgroup`).
+//! There are no float atomics.
 /// Declares that a `#[repr(C)]` push-constant struct is a `vk::PushConstants`: `push_constants!(Type: FieldType, ...)`
 /// names the fields' types in order. The assertion fails the build if the struct has padding (its size would exceed
 /// the fields' sizes), the one thing that would let `Recorder::dispatch` read uninitialized bytes.
@@ -212,6 +214,58 @@ impl Kernel {
         )
     }
 
+    /// The subgroup size the kernel's pipeline requires: Some(32) for the kernels whose reductions run on subgroup
+    /// shuffles (`tree32.glsl`), None for the rest (the driver picks).
+    pub fn subgroup(self) -> Option<u32> {
+        matches!(
+            self,
+            Kernel::ExpertsGateUp
+                | Kernel::ExpertsDown
+                | Kernel::ExpertsGateUpTokens
+                | Kernel::ExpertsDownTokens
+                | Kernel::MatvecF32
+                | Kernel::MatvecBf16
+                | Kernel::MatvecQ8_0
+                | Kernel::MatvecQ4K
+                | Kernel::MatvecQ5K
+                | Kernel::MatvecQ6K
+                | Kernel::MatvecTokensF32
+                | Kernel::MatvecTokensBf16
+                | Kernel::MatvecTokensQ8_0
+                | Kernel::MatvecTokensQ4K
+                | Kernel::MatvecTokensQ5K
+                | Kernel::MatvecTokensQ6K
+        )
+        .then_some(32)
+    }
+
+    /// A pipeline of this kernel with its specialization constants set to `spec` (by id from 0), for development tools
+    /// such as `attn_decode_speed`'s K-pass build; `Kernels::new` builds the engine's.
+    pub fn pipeline_spec(self, dev: &vk::Device, spec: &[u32]) -> Result<vk::Pipeline, vk::Error> {
+        dev.pipeline_spec(
+            self.name(),
+            self.spirv(),
+            self.push_size(),
+            self.subgroup(),
+            spec,
+        )
+    }
+
+    /// Whether the kernel also has pipelines specialized to a token count (`tokens::SPECIALIZED_TOKENS`).
+    pub fn per_token_count(self) -> bool {
+        matches!(
+            self,
+            Kernel::ExpertsGateUpTokens
+                | Kernel::ExpertsDownTokens
+                | Kernel::MatvecTokensF32
+                | Kernel::MatvecTokensBf16
+                | Kernel::MatvecTokensQ8_0
+                | Kernel::MatvecTokensQ4K
+                | Kernel::MatvecTokensQ5K
+                | Kernel::MatvecTokensQ6K
+        )
+    }
+
     /// Whether the kernel reads the device clock (`clockRealtimeEXT`), built only where the device enabled
     /// `VK_KHR_shader_clock`'s device clock (`vk::Device::shader_clock`): the CPU miss path's calibration and wait.
     pub fn needs_clock(self) -> bool {
@@ -224,6 +278,8 @@ impl Kernel {
 /// the f32 kernels.
 pub struct Kernels {
     pipes: Vec<Option<vk::Pipeline>>,
+    /// The `per_token_count` kernels' pipelines specialized to each of `tokens::SPECIALIZED_TOKENS`, in that order.
+    by_tokens: Vec<(Kernel, Vec<vk::Pipeline>)>,
     coop: bool,
     coop_error: Option<String>,
 }
@@ -239,10 +295,29 @@ impl Kernels {
             Kernel::ALL,
             dev.coop_f16() && coop_fits(limit),
             dev.shader_clock,
-            |k| dev.pipeline(k.name(), k.spirv(), k.push_size()),
+            |k| dev.pipeline_sg(k.name(), k.spirv(), k.push_size(), k.subgroup()),
         )?;
+        let by_tokens = Kernel::ALL
+            .iter()
+            .filter(|k| k.per_token_count())
+            .map(|&k| {
+                let pipes = tokens::SPECIALIZED_TOKENS
+                    .map(|t| {
+                        dev.pipeline_spec(
+                            k.name(),
+                            k.spirv(),
+                            k.push_size(),
+                            k.subgroup(),
+                            &[t as u32],
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok((k, pipes))
+            })
+            .collect::<Result<Vec<_>, vk::Error>>()?;
         Ok(Kernels {
             pipes: b.pipes,
+            by_tokens,
             coop: b.coop,
             coop_error: b.coop_error,
         })
@@ -257,6 +332,16 @@ impl Kernels {
     /// them. None when they run, or when the device lacks the shape or the shared memory.
     pub fn coop_error(&self) -> Option<&str> {
         self.coop_error.as_deref()
+    }
+
+    /// `k`'s pipeline for `tokens` tokens: the one specialized to that count when `k` has one, else the general one.
+    pub(crate) fn pipe_tokens(&self, k: Kernel, tokens: usize) -> &vk::Pipeline {
+        if tokens::SPECIALIZED_TOKENS.contains(&tokens) {
+            if let Some((_, p)) = self.by_tokens.iter().find(|(kk, _)| *kk == k) {
+                return &p[tokens - tokens::SPECIALIZED_TOKENS.start()];
+            }
+        }
+        self.pipe(k)
     }
 
     pub(crate) fn pipe(&self, k: Kernel) -> &vk::Pipeline {

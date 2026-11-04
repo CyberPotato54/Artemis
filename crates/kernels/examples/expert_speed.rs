@@ -179,6 +179,13 @@ fn main() {
     assert!(g.dev.can_profile(), "this device has no timestamps");
     let evict_src = g.bytes(&vec![0x5a; 256 << 20]);
     let evict_dst = g.bytes(&vec![0; 256 << 20]);
+    // XS_CLEAN=1: after each eviction copy, a read-only matvec over 256 MiB leaves the caches clean, closer to what a
+    // decode step leaves, so the timed kernels do not pay to write the copy's dirty lines back. The matvec gets the
+    // first timestamp, which is dropped (`ts[1..]` below).
+    let clean = std::env::var("XS_CLEAN").is_ok_and(|v| v == "1");
+    let clean_w = g.bytes(&vec![0u8; if clean { 256 << 20 } else { 16 }]);
+    let clean_x = g.zeros(2048);
+    let clean_y = g.zeros(32768);
     let mut cases = Vec::new();
     for ((gt, ut, dt), layers) in &mixes {
         let l = layers[0];
@@ -241,6 +248,20 @@ fn main() {
                     if evict {
                         r.copy(evict_src, evict_dst);
                         r.barrier();
+                        if clean {
+                            kk.matvec(
+                                r,
+                                kernels::dispatch::MatW {
+                                    addr: clean_w.addr,
+                                    ty: qwen36::quant::WType::F32,
+                                    rows: 32768,
+                                    cols: 2048,
+                                },
+                                clean_x.addr,
+                                clean_y.addr,
+                            );
+                            r.barrier();
+                        }
                     }
                     let (n, tab, st) = (d.n_expert, table.addr, status.addr);
                     if form == "decode" {
@@ -280,6 +301,7 @@ fn main() {
             let mut times = vec![Vec::with_capacity(reps); n_disp];
             for _ in 0..reps {
                 let ts = run(true);
+                let ts = if clean { ts[1..].to_vec() } else { ts };
                 assert_eq!(
                     ts.len(),
                     n_disp,

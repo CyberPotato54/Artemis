@@ -1,6 +1,6 @@
 [package]
 name = "kernels"
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -10,6 +10,11 @@ description = "Artemis's GPU kernels (GLSL, compiled by build.rs), a recording h
 [[bin]]
 name = "update-spirv"
 path = "src/bin/update_spirv.rs"
+
+[[example]]
+name = "decode_speed"
+path = "examples/decode_speed.rs"
+test = true
 
 [dependencies]
 half.workspace = true

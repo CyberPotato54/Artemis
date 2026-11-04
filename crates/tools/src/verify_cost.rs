@@ -114,8 +114,8 @@ pub struct Plan {
     /// A verify step of each `t` keeps one position (`commit(1)`), and for `t >= 2` another keeps all `t`; the drift
     /// counts what they keep.
     pub verify: Vec<usize>,
-    /// The `k`s of the MTP's draft passes (`--mtp`), ascending, once each, 1 to `MAX_VERIFY - 1`; empty without
-    /// `--mtp`. Each follows an untimed pass and two untimed decodes, which the drift counts.
+    /// The `k`s of the MTP's draft passes (`--mtp`), ascending, once each: the `t`s from 1 to `MAX_VERIFY - 1`; empty
+    /// without `--mtp`. Each follows an untimed pass and two untimed decodes, which the drift counts.
     pub mtp: Vec<usize>,
     /// The most positions of the session (counted from a context) the plan reads or moves to: the drift, or further if
     /// a step reads prompt tokens beyond where it leaves the session (a verify step reads `t` and keeps one).
@@ -192,13 +192,22 @@ impl Plan {
         if let Some(bad) = verify_ts.iter().find(|&&t| t > most) {
             bail!("--verify times steps of 1 to {most} tokens; --t has {bad}");
         }
-        let mut mtp_ks: Vec<usize> = if mtp { t.to_vec() } else { Vec::new() };
+        // A draft is 1 to `most - 1` tokens: the `t`s past that are verify lengths only.
+        let mut mtp_ks: Vec<usize> = if mtp {
+            t.iter().copied().filter(|&k| k < most).collect()
+        } else {
+            Vec::new()
+        };
         mtp_ks.sort_unstable();
         mtp_ks.dedup();
-        if let Some(bad) = mtp_ks.iter().find(|&&k| k >= most) {
+        if mtp && mtp_ks.is_empty() {
             bail!(
-                "--mtp times draft passes of 1 to {} tokens; --t has {bad}",
-                most - 1
+                "--mtp times draft passes of 1 to {} tokens; --t has only {}",
+                most - 1,
+                t.iter()
+                    .map(|t| t.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
             );
         }
         let round = round_steps(&passes, &verify_ts, &mtp_ks);
@@ -473,39 +482,57 @@ struct Record<'a> {
     verify: &'a [usize],
     /// The `k`s of the MTP's draft passes (`--mtp`); empty without it.
     mtp: &'a [usize],
+    /// The draft head's rows the MTP loaded with (0 the full head); null without `--mtp`.
+    mtp_head_rows: Option<usize>,
     records: &'a [CostRow],
 }
 
 /// The engine options for `plan`: speculation on exactly when it times verify steps or MTP passes (`Session::verify`
-/// asserts it), and the MTP loaded exactly when it times draft passes.
-pub fn options(plan: &Plan, ctx: usize, device_uuid: Option<[u8; 16]>) -> Result<Options> {
+/// asserts it), and the MTP loaded exactly when it times draft passes. `mtp_head_rows` (`--mtp-head-rows`) replaces the
+/// default config's draft head rows (0 is the full head); a value the config refuses fails here, before the load.
+pub fn options(
+    plan: &Plan,
+    ctx: usize,
+    device_uuid: Option<[u8; 16]>,
+    mtp_head_rows: Option<usize>,
+) -> Result<Options> {
     let mtp = !plan.mtp.is_empty();
+    let spec = mtp
+        .then(|| {
+            let mut c = engine::spec::SpecConfig::default();
+            if let Some(rows) = mtp_head_rows {
+                c.mtp_head_rows = rows;
+            }
+            c.check()
+                .map_err(|(key, why)| anyhow::anyhow!("--mtp-head-rows ({key}): {why}"))?;
+            Ok::<_, anyhow::Error>(c)
+        })
+        .transpose()?;
     Ok(Options {
         device_uuid,
         ctx,
         speculation: !plan.verify.is_empty() || mtp,
-        mtp: crate::generate::mtp_options(
-            mtp.then(engine::spec::SpecConfig::default).as_ref(),
-            ctx,
-        )?,
+        mtp: crate::generate::mtp_options(spec.as_ref(), ctx)?,
         ..Options::default()
     })
 }
 
 /// `artemis verify-cost`. `repo_hint` is the directory of the prompt file, where the record's commit is read.
-/// `prompt` is the token file's ids; `ctx` is the session's size, which sizes the expert cache
-/// (`Plan::check_ctx` was checked); `out` was made by the caller before this runs and is `finish`ed by it after.
+/// `prompt` is the token file's ids; `opts` are `options(plan, ...)`, whose `ctx` is the session's size, which sizes
+/// the expert cache (`Plan::check_ctx` was checked); `out` was made by the caller before this runs and is `finish`ed by
+/// it after.
 pub fn run(
     model: &Path,
     prompt: &[u32],
     plan: &Plan,
-    ctx: usize,
+    opts: &Options,
     out: &mut Output,
     repo_hint: &Path,
-    device_uuid: Option<[u8; 16]>,
 ) -> Result<()> {
+    let ctx = opts.ctx;
+    let head_rows = opts.mtp.as_ref().map(|m| m.head_rows);
     let g = Gguf::open(model).with_context(|| format!("opening {}", model.display()))?;
-    let e = Engine::open(&g, &Dims::QWEN36, &options(plan, ctx, device_uuid)?)?;
+    let e = Engine::open(&g, &Dims::QWEN36, opts)?;
     let s = e.session(ctx)?;
     let (cache_slots, lent_slots) = (e.cache_slots(), e.stats().lent_slots);
     let build = Build::read(repo_hint);
@@ -555,6 +582,7 @@ pub fn run(
         t,
         verify: &plan.verify,
         mtp: &plan.mtp,
+        mtp_head_rows: head_rows,
         records: &rows,
     })
 }
@@ -741,6 +769,7 @@ mod tests {
             t: vec![1],
             verify: &[],
             mtp: &[],
+            mtp_head_rows: Some(0),
             records: &[],
         };
         let v = serde_json::to_value(&r).unwrap();
@@ -754,6 +783,7 @@ mod tests {
             "cache_slots",
             "lent_slots",
             "warmup",
+            "mtp_head_rows",
         ] {
             assert!(v.get(k).is_some(), "{k}");
         }
@@ -942,23 +972,35 @@ mod tests {
         };
         let e = measure(&mut short, &prompt, &plan).unwrap_err().to_string();
         assert!(e.contains("drafted 0 of 1"), "{e}");
-        // Without --mtp none is timed; a draft is 1 to 15 tokens.
+        // Without --mtp none is timed; a draft is 1 to 15 tokens, so a 16 in --t is a verify length only.
         let plain = Plan::new(1000, &[64], &[1, 2], 1, 0).unwrap();
         assert!(plain.mtp.is_empty());
-        let e = Plan::with_mtp(1000, &[64], &[1, 16], 1, 0, false, true)
+        let wide = Plan::with_mtp(1000, &[64], &[1, 16], 1, 0, true, true).unwrap();
+        assert_eq!((wide.mtp, wide.verify), (vec![1], vec![1, 16]));
+        let e = Plan::with_mtp(1000, &[64], &[16], 1, 0, false, true)
             .unwrap_err()
             .to_string();
-        assert!(e.contains("1 to 15 tokens") && e.contains("has 16"), "{e}");
+        assert!(e.contains("1 to 15 tokens") && e.contains("only 16"), "{e}");
         // The engine loads the MTP (and speculation, which it needs) exactly for a plan that times it.
-        let o = options(&plan, 65_536, None).unwrap();
+        let o = options(&plan, 65_536, None, None).unwrap();
         assert!(o.speculation && o.mtp.is_some());
-        let o = options(&plain, 65_536, None).unwrap();
+        let default_rows = o.mtp.unwrap().head_rows;
+        let o = options(&plain, 65_536, None, None).unwrap();
         assert!(!o.speculation && o.mtp.is_none());
         let verifying = Plan::with_verify(1000, &[64], &[1, 2], 1, 0, true).unwrap();
-        let o = options(&verifying, 65_536, None).unwrap();
+        let o = options(&verifying, 65_536, None, None).unwrap();
         assert!(o.speculation && o.mtp.is_none());
         // A session under 512 positions can't hold the MTP.
-        assert!(options(&plan, 256, None).is_err());
+        assert!(options(&plan, 256, None, None).is_err());
+        // --mtp-head-rows sets the draft head's rows (0 the full head); a value the config refuses fails before the
+        // load.
+        let full = options(&plan, 65_536, None, Some(0)).unwrap();
+        assert_eq!(full.mtp.unwrap().head_rows, 0);
+        assert_ne!(default_rows, 0);
+        let e = options(&plan, 65_536, None, Some(512))
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("mtp_head_rows"), "{e}");
     }
 
     #[test]

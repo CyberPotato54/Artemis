@@ -394,6 +394,32 @@ impl Device {
         spv: &[u8],
         push_size: u32,
     ) -> Result<Pipeline, Error> {
+        self.pipeline_sg(name, spv, push_size, None)
+    }
+
+    /// `pipeline`, with `subgroup` Some(n) building it with a required subgroup size of n and full subgroups, for a
+    /// kernel whose reductions run on subgroup shuffles. The device opens only where 32 can be required
+    /// (`Support::subgroup_size_32`).
+    pub fn pipeline_sg(
+        &self,
+        name: &'static str,
+        spv: &[u8],
+        push_size: u32,
+        subgroup: Option<u32>,
+    ) -> Result<Pipeline, Error> {
+        self.pipeline_spec(name, spv, push_size, subgroup, &[])
+    }
+
+    /// `pipeline_sg`, with the shader's specialization constants set: `spec[i]` is the u32 value of constant_id i.
+    /// Constants not listed keep the shader's defaults.
+    pub fn pipeline_spec(
+        &self,
+        name: &'static str,
+        spv: &[u8],
+        push_size: u32,
+        subgroup: Option<u32>,
+        spec: &[u32],
+    ) -> Result<Pipeline, Error> {
         let code = ash::util::read_spv(&mut std::io::Cursor::new(spv))
             .ok()
             .filter(|c| !c.is_empty())
@@ -413,10 +439,32 @@ impl Device {
                     None,
                 )
                 .map_err(vk_err("creating a pipeline layout"))?;
-            let stage = vk::PipelineShaderStageCreateInfo::default()
+            let mut req = vk::PipelineShaderStageRequiredSubgroupSizeCreateInfo::default()
+                .required_subgroup_size(subgroup.unwrap_or(0));
+            let mut stage = vk::PipelineShaderStageCreateInfo::default()
                 .stage(vk::ShaderStageFlags::COMPUTE)
                 .module(module)
                 .name(c"main");
+            if subgroup.is_some() {
+                stage = stage
+                    .flags(vk::PipelineShaderStageCreateFlags::REQUIRE_FULL_SUBGROUPS)
+                    .push_next(&mut req);
+            }
+            let entries: Vec<vk::SpecializationMapEntry> = (0..spec.len() as u32)
+                .map(|i| {
+                    vk::SpecializationMapEntry::default()
+                        .constant_id(i)
+                        .offset(4 * i)
+                        .size(4)
+                })
+                .collect();
+            let data: Vec<u8> = spec.iter().flat_map(|v| v.to_ne_bytes()).collect();
+            let spec_info = vk::SpecializationInfo::default()
+                .map_entries(&entries)
+                .data(&data);
+            if !spec.is_empty() {
+                stage = stage.specialization_info(&spec_info);
+            }
             let info = [vk::ComputePipelineCreateInfo::default()
                 .stage(stage)
                 .layout(layout)];

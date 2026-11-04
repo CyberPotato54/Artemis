@@ -858,6 +858,8 @@ impl Loader for FakeLoader {
             device_uuid: [0; 16],
             driver: "fake".into(),
             slots_per_layer: cache_slots.unwrap_or(self.slots_per_layer),
+            mtp_slots: 0,
+            mtp_slot_bytes: 0,
             vram_weights: 0,
             vram_session: 0,
             vram_used: (self.vram_used)(index),

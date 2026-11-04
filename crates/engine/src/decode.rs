@@ -436,11 +436,7 @@ impl Session {
         let ids = e.routes.read_f32(0, d.n_layer * d.n_expert_used);
         e.count_routes(&ids, 1, None);
         let logits = e.logits.read_f32(0, d.n_vocab);
-        let bad = logits
-            .iter()
-            .enumerate()
-            .find(|(_, v)| !v.is_finite())
-            .map(|(i, &v)| (i, v));
+        let bad = crate::sample::first_non_finite(&logits);
         e.time(CpuPhase::Read, t0);
         e.observe_routes(&ids, 1);
         if let Some((index, value)) = bad {

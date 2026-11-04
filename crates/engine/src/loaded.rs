@@ -214,6 +214,8 @@ impl Loader for EngineLoader {
             device_uuid: engine.device_uuid(),
             driver: engine.driver().to_string(),
             slots_per_layer: slots,
+            mtp_slots: engine.stats().mtp_slots,
+            mtp_slot_bytes: engine.stats().mtp_slot_bytes,
             vram_weights: engine.vram_bytes(),
             vram_session: session.vram_bytes(),
             // The extension is required at device creation; a usage of 0 would mean no figure, not a failed load.

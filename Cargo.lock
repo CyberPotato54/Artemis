@@ -83,7 +83,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "artemis-tools"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -396,7 +396,7 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 
 [[package]]
 name = "engine"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cpu_expert",
  "gguf",
@@ -479,7 +479,7 @@ dependencies = [
 
 [[package]]
 name = "gguf"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "memmap2",
 ]
@@ -626,7 +626,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "kernels"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cpu_expert",
  "gguf",
@@ -888,7 +888,7 @@ dependencies = [
 
 [[package]]
 name = "qwen36"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gguf",
  "half",
@@ -1068,7 +1068,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "clap",
@@ -1087,6 +1087,7 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
+ "windows-sys",
 ]
 
 [[package]]
@@ -1438,7 +1439,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vk"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ash",
  "libloading",

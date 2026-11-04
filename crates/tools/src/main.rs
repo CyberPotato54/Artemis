@@ -2,8 +2,8 @@
 //! engine's dump and its tap rule, and `generate`, which runs prompts through prefill.
 use anyhow::{bail, Context, Result};
 use artemis_tools::{
-    compare, generate, hits, kl, mtp_check, profile, snaptimes, spec_check, speed, tapdir, test2,
-    test3, test5, test6, verify_cost,
+    compare, generate, hits, kl, mtp_check, profile, route_predict, snaptimes, spec_check, speed,
+    tapdir, test2, test3, test5, test6, verify_cost,
 };
 use clap::{Parser, Subcommand};
 use engine::{Engine, Live, Loaded, Marks, Options, Sampler, SnapId, Snapshots};
@@ -22,7 +22,8 @@ use std::{collections::BTreeMap, fs, io::Write, path::PathBuf, time::Instant};
 #[derive(Parser)]
 #[command(
     name = "artemis",
-    about = "Artemis: a Qwen3.6-35B-A3B engine on Vulkan"
+    about = "Artemis: a Qwen3.6-35B-A3B engine on Vulkan",
+    after_help = "Test and measurement commands are hidden; `artemis help <command>` shows any of them."
 )]
 struct Cli {
     /// Without a command, `artemis` says how to start the server.
@@ -40,6 +41,7 @@ enum PolicyArg {
 #[derive(Subcommand)]
 enum Cmd {
     /// Run a token file through the CPU reference (--cpu) or the GPU engine (--gpu) and write every tap.
+    #[command(hide = true)]
     Dump {
         #[arg(long)]
         model: PathBuf,
@@ -80,6 +82,7 @@ enum Cmd {
         hidden: Option<PathBuf>,
     },
     /// Print per-tap differences of A against B (either directory format).
+    #[command(hide = true)]
     Compare {
         a: PathBuf,
         b: PathBuf,
@@ -91,6 +94,7 @@ enum Cmd {
         tiny: bool,
     },
     /// Apply test 2's pass rule and write the verdict as JSON.
+    #[command(hide = true)]
     Test2 {
         #[arg(long)]
         llama_cpu: PathBuf,
@@ -109,6 +113,7 @@ enum Cmd {
     },
     /// Apply the GPU engine's rule: the engine teacher-forced from the reference's taps, tap by tap. The
     /// reference must come from `dump --cpu --f16-kv`. Writes the verdict as JSON and exits 1 if it fails.
+    #[command(hide = true)]
     GpuTaps {
         #[arg(long)]
         reference: PathBuf,
@@ -122,6 +127,7 @@ enum Cmd {
     /// Generate text, greedy or sampled. The prompt runs through prefill, then each token
     /// through decode, or, with speculation (on by default), through verify steps over drafts from the run's own
     /// history. --json records every step and the logits fingerprints, for tests 3 and 5.
+    #[command(hide = true)]
     Generate {
         #[arg(long)]
         model: PathBuf,
@@ -220,6 +226,10 @@ enum Cmd {
         /// without what the CPU path needs, before it loads the model; the speed and hit-rate gates refuse such runs.
         #[arg(long, default_value_t = 0.0)]
         cpu_share: f32,
+        /// With the MTP, the VRAM slots for its block's most-routed experts (default 64, out of the cache's budget, so
+        /// the load may give fewer); 0 for none. For comparisons.
+        #[arg(long)]
+        mtp_slots: Option<u16>,
         #[command(flatten)]
         spec: generate::SpecFlags,
         /// The GPU's UUID, when there is more than one discrete GPU.
@@ -229,6 +239,7 @@ enum Cmd {
     /// Apply test 3's rule to golden prompts: our runs, fed llama.cpp's greedy tokens, may flip at most 1.5
     /// times as often as llama.cpp CPU's along the same tokens, pooled over the prompts. Writes the verdict as JSON and
     /// exits 1 if it fails.
+    #[command(hide = true)]
     Test3 {
         /// The golden set: prompts/<id>.tokens, expected/<id>.json and forced-cpu/<id>.json.
         #[arg(long)]
@@ -244,6 +255,7 @@ enum Cmd {
     /// first half of the prompt) or path 2 (prefill it, decode half the oracle's tokens), dirty the engine with
     /// another golden prompt, restore, and decode the oracle's tokens forced. --json is a `generate` record that
     /// `test3` accepts, plus the `warm` facts. The engine opens as `generate`'s default does.
+    #[command(hide = true)]
     Warm {
         #[arg(long)]
         model: PathBuf,
@@ -279,6 +291,7 @@ enum Cmd {
     /// Apply test 6's rule to the golden prompts' cold runs and warm paths: each path's flips,
     /// pooled, at most 48; the long prompt's prefilled positions after a path-1 restore bit for bit the cold run's.
     /// Writes the verdict as JSON and exits 1 if it fails.
+    #[command(hide = true)]
     Test6 {
         /// The golden set: prompts/<id>.tokens, expected/<id>.json and forced-cpu/<id>.json.
         #[arg(long)]
@@ -300,6 +313,7 @@ enum Cmd {
     /// pool memory kinds, then the DeltaNet state and the KV to the host and back (whole, and as the server's snapshot
     /// points), a restore after a dirtying, and the prefill's tok/s with and without the snapshots. Report only: it
     /// fails only when it can't run.
+    #[command(hide = true)]
     SnapshotTimes {
         #[arg(long)]
         model: PathBuf,
@@ -317,6 +331,7 @@ enum Cmd {
     },
     /// Apply the hit-rate gate: the golden set with 128 greedy tokens, the adaptive policy
     /// against the static one, by group. Writes the verdict as JSON and exits 1 if it fails.
+    #[command(hide = true)]
     Hits {
         /// The golden set: the runs' prompts must be its prompts/<id>.tokens.
         #[arg(long)]
@@ -327,8 +342,22 @@ enum Cmd {
         #[arg(long)]
         out: PathBuf,
     },
+    /// Item 4's predictor study: layer l + 1's router on layer l's residual, scored against the routes layer l + 1
+    /// took, from a tap folder with `Layer(l, Out)` and `Layer(l, TopK)`. Writes the recall of all routes and of HOST
+    /// routes (outside the N most-routed experts of each layer, N = 132, 85, 30) for top 8 and 12 as JSON.
+    #[command(hide = true)]
+    RoutePredict {
+        #[arg(long)]
+        model: PathBuf,
+        /// A tap folder from `dump` (the CPU reference or the GPU engine).
+        #[arg(long)]
+        taps: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Apply test 5's rule: runs of one prompt at several cache sizes, and with forced swaps, must give the
     /// same tokens and bit-identical logits. Writes the verdict as JSON and exits 1 if it fails.
+    #[command(hide = true)]
     Test5 {
         /// LABEL=FILE: a `generate --json` record and its name in the verdict. The first run is the baseline.
         #[arg(long = "run", required = true)]
@@ -343,6 +372,7 @@ enum Cmd {
     /// Test 4's measurement: score the engine's logits against a llama-perplexity KL base, chunk by chunk
     /// from a fresh state, and write the mean KL divergence as JSON. Each chunk runs through prefill, with the scored
     /// positions' logits.
+    #[command(hide = true)]
     Kl {
         #[arg(long)]
         model: PathBuf,
@@ -370,6 +400,7 @@ enum Cmd {
     },
     /// Apply test 4's rule to `artemis kl`'s report and llama.cpp's Vulkan-vs-CPU KL, read from
     /// llama-perplexity's output. Writes the verdict as JSON and exits 1 if it fails.
+    #[command(hide = true)]
     Test4 {
         /// llama-perplexity's output from the --kl-divergence run on Vulkan.
         #[arg(long)]
@@ -384,6 +415,7 @@ enum Cmd {
     /// write, edit and explain prompts at seeds 1234 and 1235, and the long golden prompt's prefill in the slower of
     /// two runs. Writes the verdict as JSON. Exits 1 when a record isn't one of the gate's runs, and, with --gate,
     /// when a speed is below its bound.
+    #[command(hide = true)]
     Speed {
         /// PROMPT=FILE: a decode run of speed prompt PROMPT (write, edit or explain).
         #[arg(long = "decode", required = true)]
@@ -407,6 +439,7 @@ enum Cmd {
         out: PathBuf,
     },
     /// Print the --filter regex for `artemis-oracle taps` (or, with --mtp, `mtp-taps`).
+    #[command(hide = true)]
     TapsFilter {
         /// The MTP block's names instead of the main model's.
         #[arg(long)]
@@ -414,6 +447,7 @@ enum Cmd {
     },
     /// Test 2's MTP half: the reference's MTP taps, teacher-forced from `artemis-oracle mtp-taps`,
     /// against it per operation. Writes the verdict as JSON and exits 1 unless it passes.
+    #[command(hide = true)]
     Test2Mtp {
         /// `artemis-oracle mtp-taps --out`.
         #[arg(long)]
@@ -431,6 +465,7 @@ enum Cmd {
     /// and compares the MTP's logits at each position with `artemis-oracle mtp-taps`'s `result_output`. Pass: the top-1
     /// ids are equal wherever the oracle's top two are more than the test 3 tie margin apart; the relative L2 is
     /// reported. Writes the verdict as JSON and exits 1 unless it passes. GPU.
+    #[command(hide = true)]
     MtpCheck {
         #[arg(long)]
         model: PathBuf,
@@ -450,6 +485,7 @@ enum Cmd {
         device: Option<String>,
     },
     /// Write the tiny synthetic test model.
+    #[command(hide = true)]
     TinyModel {
         #[arg(long, default_value_t = 1)]
         seed: u64,
@@ -457,6 +493,7 @@ enum Cmd {
         out: PathBuf,
     },
     /// Write the compact vocabulary extract committed for CI.
+    #[command(hide = true)]
     ExtractVocab {
         #[arg(long)]
         model: PathBuf,
@@ -466,6 +503,7 @@ enum Cmd {
     /// What a t-token pass costs on the prefill path: at each --at context, --reps timed decode
     /// steps, then --reps timed prefill passes over the prompt's next t tokens for every t of 2 or more in --t. Writes
     /// the per-(path, context, t) means and minimums as JSON.
+    #[command(hide = true)]
     VerifyCost {
         #[arg(long)]
         model: PathBuf,
@@ -498,6 +536,10 @@ enum Cmd {
         /// "mtp_draft", t = k), each after one untimed decode step. The engine opens with the MTP and speculation on.
         #[arg(long)]
         mtp: bool,
+        /// With --mtp: the draft head's rows, 0 for the full head or at least 1,024 (default: the speculation
+        /// config's `mtp_head_rows`).
+        #[arg(long, requires = "mtp")]
+        mtp_head_rows: Option<usize>,
         /// Written whole at the end, its directory made first; a failed run leaves no file.
         #[arg(long)]
         json: PathBuf,
@@ -512,15 +554,19 @@ enum Cmd {
     Setup(Box<artemis_tools::setup::SetupCmd>),
     /// Run test 7's real-engine cases against a running server on loopback (never port 8080) and write one verdict
     /// file per case.
+    #[command(hide = true)]
     Test7(Box<artemis_tools::test7::Test7Args>),
     /// Report how much of the prompts the cache gave back, from request logs: overall, by where the restore came from
     /// and by why it stopped short, and the think-budget insertions by budget.
+    #[command(hide = true)]
     ReuseReport(Box<artemis_tools::test7::report::ReuseReportArgs>),
     /// Replay recorded token streams through the prompt-lookup drafter and the acceptance rule, and predict the accept
     /// rate and the decode speed with the cost model. CPU only.
+    #[command(hide = true)]
     LookupSim(artemis_tools::lookup_sim::LookupSimArgs),
     /// Speculation on against off in one process, one model load: `golden` judges the
     /// golden prompts' greedy runs by test 3's near-tie rule, `speed` times the speed prompts. GPU.
+    #[command(hide = true)]
     SpecCheck {
         #[command(subcommand)]
         cmd: spec_check::Cmd,
@@ -1647,6 +1693,7 @@ fn cli() -> Result<()> {
             no_lend,
             base_time,
             cpu_share,
+            mtp_slots,
             spec,
             device,
         } => {
@@ -1736,6 +1783,7 @@ fn cli() -> Result<()> {
                     speculation: spec.is_some(),
                     // The MTP when this run speculates with it.
                     mtp: generate::mtp_options_for_flags(spec.as_ref(), ctx)?,
+                    mtp_slots: mtp_slots.map(usize::from),
                     load_ticks: None,
                 },
             )?;
@@ -1744,7 +1792,7 @@ fn cli() -> Result<()> {
             eprintln!(
                 "loaded on {} in {load_s:.1} s; prompt {} tokens; VRAM: {} MiB of weights, {} MiB for the \
                  {ctx}-position session, {} MiB for {} expert slots per layer and {} more lent by staging, the {} cache \
-                 policy, prefill on {} kernels, {} MiB of staging buffers{}{}{}",
+                 policy, prefill on {} kernels, {} MiB of staging buffers{}{}{}{}",
                 e.device_name(),
                 prompt.len(),
                 e.vram_bytes() >> 20,
@@ -1757,6 +1805,7 @@ fn cli() -> Result<()> {
                 e.stats().staging_bytes >> 20,
                 generate::coop_note(e.coop_error()),
                 generate::mtp_ring_note(e.mtp_ring_clamp()),
+                generate::mtp_slots_note(&e.stats()),
                 if e.base_time() {
                     "; the base time: decode reads a resident expert for every HOST one (meaningless output)"
                 } else {
@@ -2109,6 +2158,27 @@ fn cli() -> Result<()> {
                 std::process::exit(1);
             }
         }
+        Cmd::RoutePredict { model, taps, out } => {
+            let d = Dims::QWEN36;
+            let g = Gguf::open(&model).with_context(|| format!("opening {}", model.display()))?;
+            let m = Model::open(&g, &d)?;
+            let set = tapdir::read(&taps, &d)?;
+            let v = route_predict::study(&set, &m, &d)?;
+            fs::write(&out, serde_json::to_vec_pretty(&v)?)?;
+            for r in v["results"].as_array().into_iter().flatten() {
+                println!(
+                    "route-predict: rows {:>3} top {:>2}: all routes {:5.1}%, HOST routes {:5.1}% ({} of {}), wasted {} {}",
+                    r["rows"],
+                    r["top"],
+                    r["recall_all_pct"].as_f64().unwrap_or(0.0),
+                    r["recall_host_pct"].as_f64().unwrap_or(0.0),
+                    r["caught_host"],
+                    r["host_routes"],
+                    r["wasted"],
+                    if r["meets_bar"] == true { "(meets the bar)" } else { "(misses the bar)" }
+                );
+            }
+        }
         Cmd::Test5 {
             runs,
             report_runs,
@@ -2223,6 +2293,7 @@ fn cli() -> Result<()> {
                     cpu_share: 0.0,
                     speculation: false,
                     mtp: None,
+                    mtp_slots: None,
                     load_ticks: None,
                 },
             )?;
@@ -2448,6 +2519,7 @@ fn cli() -> Result<()> {
             ctx,
             verify,
             mtp,
+            mtp_head_rows,
             json,
             device,
         } => {
@@ -2455,18 +2527,19 @@ fn cli() -> Result<()> {
             let plan =
                 verify_cost::Plan::with_mtp(prompt.len(), &at, &t, reps, warmup, verify, mtp)?;
             plan.check_ctx(ctx)?;
+            let opts =
+                verify_cost::options(&plan, ctx, device_uuid(device.as_deref())?, mtp_head_rows)?;
             // An unwritable --json path fails now, not after the run.
             let mut out = verify_cost::Output::create(&json)?;
             verify_cost::run(
                 &model,
                 &prompt,
                 &plan,
-                ctx,
+                &opts,
                 &mut out,
                 tokens_file
                     .parent()
                     .unwrap_or_else(|| std::path::Path::new(".")),
-                device_uuid(device.as_deref())?,
             )?;
             out.finish()?;
         }
@@ -2495,6 +2568,31 @@ fn cli() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The help a user sees lists the server's two commands; the test and measurement commands are hidden there but
+    /// still parse.
+    #[test]
+    fn the_help_lists_serve_and_setup_and_hides_the_test_commands() {
+        use clap::CommandFactory;
+        let help = Cli::command().render_help().to_string();
+        assert!(help.contains("serve"), "{help}");
+        assert!(help.contains("setup"), "{help}");
+        for hidden in [
+            "dump",
+            "test2",
+            "kl",
+            "spec-check",
+            "lookup-sim",
+            "tiny-model",
+        ] {
+            assert!(
+                !help.lines().any(|l| l.trim_start().starts_with(hidden)),
+                "{hidden} is listed:\n{help}"
+            );
+        }
+        assert!(Cli::try_parse_from(["artemis", "tiny-model", "--help"])
+            .is_err_and(|e| e.kind() == clap::error::ErrorKind::DisplayHelp));
+    }
 
     /// `spec-check` nests `golden` and `speed`; the speed subcommand takes `generate`'s speculation flags.
     #[test]
@@ -2709,6 +2807,21 @@ mod tests {
             Cmd::VerifyCost { verify, .. } => assert!(verify),
             _ => panic!("not verify-cost"),
         }
+        // --mtp-head-rows is unset by default (the config's rows) and takes 0, the full head.
+        match parse(&base).unwrap() {
+            Cmd::VerifyCost { mtp_head_rows, .. } => assert_eq!(mtp_head_rows, None),
+            _ => panic!("not verify-cost"),
+        }
+        let mut h = base.to_vec();
+        h.extend(["--mtp", "--mtp-head-rows", "0"]);
+        match parse(&h).unwrap() {
+            Cmd::VerifyCost { mtp_head_rows, .. } => assert_eq!(mtp_head_rows, Some(0)),
+            _ => panic!("not verify-cost"),
+        }
+        // Without --mtp the flag has no effect, so it is refused.
+        let mut n = base.to_vec();
+        n.extend(["--mtp-head-rows", "0"]);
+        assert!(parse(&n).is_err());
         let mut a = base.to_vec();
         a.extend(["--at", "64,128", "--t", "2,8", "--reps", "3"]);
         match parse(&a).unwrap() {

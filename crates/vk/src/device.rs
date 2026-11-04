@@ -85,6 +85,11 @@ pub struct Support {
     pub shader_int64: bool,
     pub subgroup_arithmetic: bool,
     pub subgroup_shuffle: bool,
+    /// A compute pipeline can require a subgroup size of 32 with full subgroups (Vulkan 1.3's subgroupSizeControl and
+    /// computeFullSubgroups, compute in requiredSubgroupSizeStages, 32 within the size range): the kernels whose
+    /// reductions run on subgroup shuffles pin it (`Device::pipeline_sg`); and a workgroup may hold 8 subgroups
+    /// (maxComputeWorkgroupSubgroups), the expert kernels' 256 threads.
+    pub subgroup_size_32: bool,
     pub memory_budget: bool,
 }
 
@@ -102,6 +107,10 @@ pub fn missing_features(s: &Support) -> Vec<&'static str> {
         (s.shader_int64, "shaderInt64"),
         (s.subgroup_arithmetic, "subgroup arithmetic in compute"),
         (s.subgroup_shuffle, "subgroup shuffle"),
+        (
+            s.subgroup_size_32,
+            "a required subgroup size of 32 in compute with 8 subgroups a workgroup",
+        ),
         (s.memory_budget, "VK_EXT_memory_budget"),
     ]
     .into_iter()
@@ -742,18 +751,23 @@ fn open_device(
         let has_cm = has(ash::khr::cooperative_matrix::NAME);
         let mut f11 = vk::PhysicalDeviceVulkan11Features::default();
         let mut f12 = vk::PhysicalDeviceVulkan12Features::default();
+        let mut f13 = vk::PhysicalDeviceVulkan13Features::default();
         let mut fcm = vk::PhysicalDeviceCooperativeMatrixFeaturesKHR::default();
         let mut f2 = vk::PhysicalDeviceFeatures2::default()
             .push_next(&mut f11)
-            .push_next(&mut f12);
+            .push_next(&mut f12)
+            .push_next(&mut f13);
         if has_cm {
             f2 = f2.push_next(&mut fcm);
         }
         instance.get_physical_device_features2(pd, &mut f2);
         let core = f2.features;
         let mut p11 = vk::PhysicalDeviceVulkan11Properties::default();
+        let mut p13 = vk::PhysicalDeviceVulkan13Properties::default();
         let mut pcm = vk::PhysicalDeviceCooperativeMatrixPropertiesKHR::default();
-        let mut p2 = vk::PhysicalDeviceProperties2::default().push_next(&mut p11);
+        let mut p2 = vk::PhysicalDeviceProperties2::default()
+            .push_next(&mut p11)
+            .push_next(&mut p13);
         if has_cm {
             p2 = p2.push_next(&mut pcm);
         }
@@ -779,6 +793,14 @@ fn open_device(
             subgroup_shuffle: p11
                 .subgroup_supported_operations
                 .contains(vk::SubgroupFeatureFlags::SHUFFLE),
+            subgroup_size_32: on(f13.subgroup_size_control)
+                && on(f13.compute_full_subgroups)
+                && p13
+                    .required_subgroup_size_stages
+                    .contains(vk::ShaderStageFlags::COMPUTE)
+                && (p13.min_subgroup_size..=p13.max_subgroup_size).contains(&32)
+                // The expert kernels' 256-thread workgroups are 8 subgroups of 32.
+                && p13.max_compute_workgroup_subgroups >= 8,
             memory_budget: has(ash::ext::memory_budget::NAME),
         };
         let missing = missing_features(&support);
@@ -883,6 +905,9 @@ fn open_device(
             .host_query_reset(host_reset)
             .vulkan_memory_model(coop_f16)
             .vulkan_memory_model_device_scope(coop_f16 && dev_scope);
+        let mut e13 = vk::PhysicalDeviceVulkan13Features::default()
+            .subgroup_size_control(true)
+            .compute_full_subgroups(true);
         let mut eamd =
             vk::PhysicalDeviceCoherentMemoryFeaturesAMD::default().device_coherent_memory(true);
         let mut ecm =
@@ -893,7 +918,8 @@ fn open_device(
         let mut feats = vk::PhysicalDeviceFeatures2::default()
             .features(core_on)
             .push_next(&mut e11)
-            .push_next(&mut e12);
+            .push_next(&mut e12)
+            .push_next(&mut e13);
         if has_coherent {
             feats = feats.push_next(&mut eamd);
         }
@@ -1001,6 +1027,7 @@ mod tests {
             shader_int64: true,
             subgroup_arithmetic: true,
             subgroup_shuffle: true,
+            subgroup_size_32: true,
             memory_budget: true,
         };
         assert!(missing_features(&all).is_empty());
@@ -1012,6 +1039,14 @@ mod tests {
         assert_eq!(
             missing_features(&some),
             ["shaderInt64", "VK_EXT_memory_budget"]
+        );
+        let sg = Support {
+            subgroup_size_32: false,
+            ..all
+        };
+        assert_eq!(
+            missing_features(&sg),
+            ["a required subgroup size of 32 in compute with 8 subgroups a workgroup"]
         );
         let e = Error::MissingFeatures(missing_features(&some)).to_string();
         assert!(e.contains("shaderInt64, VK_EXT_memory_budget"), "{e}");

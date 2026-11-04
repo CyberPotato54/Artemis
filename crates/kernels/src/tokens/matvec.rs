@@ -22,7 +22,8 @@ push_constants!(MatvecTokensPush: u64, u64, u64, u32, u32, u32, u32, u32, u32);
 impl Kernels {
     /// `y` ← W·x for `tokens` input vectors: token `i`'s `w.cols` inputs are at `x + 4·i·x_stride` and its `w.rows`
     /// outputs at `y + 4·i·y_stride` (strides in values). Each token's outputs are `matvec`'s, summed in its order
-    /// (`unit_dot_n` per weight unit, then one tree per token); the weights are read once.
+    /// (`unit_load` once a weight unit, `unit_dot_loaded` per token, then one tree per token); the weights are read
+    /// once. Counts in `tokens::SPECIALIZED_TOKENS` run a pipeline specialized to the count, others the general one.
     #[allow(clippy::too_many_arguments)]
     pub fn matvec_tokens(
         &self,
@@ -45,8 +46,9 @@ impl Kernels {
             w.ty.name(),
             w.cols
         );
-        // As `matvec`: `unit_dot_n` reads x, and F32, BF16, Q4_K and Q5_K rows, 16 bytes at a time; Q8_0 and Q6_K rows
-        // two bytes at a time. Every token's input must be 16-byte aligned too, so the stride is a multiple of 4.
+        // As `matvec`: `unit_dot_loaded` reads x 16 bytes at a time, and `unit_load` reads F32, BF16, Q4_K and Q5_K
+        // rows 16 bytes at a time and Q8_0 and Q6_K rows two bytes at a time. Every token's input must be 16-byte
+        // aligned too, so the stride is a multiple of 4.
         let wide = matches!(w.ty, WType::F32 | WType::Bf16 | WType::Q4K | WType::Q5K);
         let need = if wide { 16 } else { 2 };
         assert!(
@@ -60,8 +62,8 @@ impl Kernels {
             "a matvec_tokens over {} inputs with x_stride {x_stride}: a multiple of 4 values (16 bytes), at least the inputs",
             w.cols
         );
-        // `unit_dot_n` forms a token's input offset in 32 bits (`4u * i * x_stride`), and the push holds both strides
-        // as u32: the last token's inputs must end inside that.
+        // `matvec_tokens.glsl` forms a token's input offset in 32 bits (`4u * i * x_stride`), and the push holds both
+        // strides as u32: the last token's inputs must end inside that.
         assert!(
             4 * (tokens - 1) * x_stride + 4 * w.cols <= u32::MAX as usize && y_stride <= u32::MAX as usize,
             "a matvec_tokens over {tokens} tokens with x_stride {x_stride} and y_stride {y_stride}: the strides overflow 32 bits"
@@ -83,7 +85,7 @@ impl Kernels {
             pad: 0,
         };
         r.dispatch(
-            self.pipe(Kernel::matvec_tokens(w.ty)),
+            self.pipe_tokens(Kernel::matvec_tokens(w.ty), tokens),
             &push,
             [groups(w.rows, 8), 1, 1],
         );

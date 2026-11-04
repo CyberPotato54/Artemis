@@ -348,6 +348,7 @@ pub fn user_keys(file: Option<&toml::Table>, args: &ServeArgs) -> BTreeSet<Strin
         (args.device_uuid.is_some(), "device_uuid"),
         (args.ctx.is_some(), "ctx"),
         (args.cache_slots.is_some(), "cache_slots"),
+        (args.mtp_expert_slots.is_some(), "mtp_expert_slots"),
         (args.f32_prefill.is_some(), "f32_prefill"),
     ];
     for (set, name) in flags {

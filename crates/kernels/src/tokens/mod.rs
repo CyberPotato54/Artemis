@@ -5,13 +5,19 @@
 pub mod attention;
 pub mod matvec;
 
-/// The most tokens one verify step carries: the last accepted token and up to 15 drafts. `unit_dot_n`'s accumulators
-/// (`quant.glsl`'s `MAX_TOKENS`, pinned equal by a test) and every token kernel's dispatch assert are sized by it.
+/// The most tokens one verify step carries: the last accepted token and up to 15 drafts. The token kernels' general
+/// pipelines (their shaders' `TOKENS` default, pinned equal by a test) and every token kernel's dispatch assert are
+/// sized by it.
 pub const MAX_TOKENS: usize = 16;
 
 /// The most (token, choice) pairs one layer's `moe_unique` and `experts_*_tokens` take: one invocation each in one
 /// workgroup of 256. A verify of `MAX_TOKENS` tokens needs `MAX_TOKENS` times the model's experts per token to fit.
 pub const MAX_PAIRS: usize = 256;
+
+/// The token counts the token kernels (`experts_gate_up_tokens`, `experts_down_tokens`, `matvec_tokens_*`) have
+/// pipelines specialized to (their shaders' `TOKENS`, specialization constant 0): the verify step's usual sizes. Other
+/// counts run the general pipeline, `TOKENS` = `MAX_TOKENS`.
+pub const SPECIALIZED_TOKENS: std::ops::RangeInclusive<usize> = 2..=5;
 
 // The dispatches take at most 16 choices a token, so `MAX_TOKENS` tokens always fit `MAX_PAIRS`.
 const _: () = assert!(MAX_TOKENS * 16 <= MAX_PAIRS);

@@ -209,10 +209,93 @@ fn the_token_sizes() {
 
 #[test]
 fn the_shaders_max_tokens_is_the_rust_one() {
-    // quant.glsl's unit_dot_n sizes its accumulators by a constant of its own, which must be tokens::MAX_TOKENS.
-    let quant = include_str!("../shaders/quant.glsl");
-    let want = format!("const uint MAX_TOKENS = {}u;", kernels::tokens::MAX_TOKENS);
-    assert!(quant.contains(&want), "quant.glsl lacks `{want}`");
+    // The token kernels size their per-token sums by TOKENS, a specialization constant: the pipelines for
+    // tokens::SPECIALIZED_TOKENS set it, and the general pipeline (every other count) runs its default, which must be
+    // tokens::MAX_TOKENS.
+    let shaders = [
+        (
+            "matvec_tokens.glsl",
+            include_str!("../shaders/matvec_tokens.glsl"),
+        ),
+        (
+            "experts_gate_up_tokens.comp",
+            include_str!("../shaders/experts_gate_up_tokens.comp"),
+        ),
+        (
+            "experts_down_tokens.comp",
+            include_str!("../shaders/experts_down_tokens.comp"),
+        ),
+    ];
+    let want = format!(
+        "layout(constant_id = 0) const uint TOKENS = {}u;",
+        kernels::tokens::MAX_TOKENS
+    );
+    for (name, src) in shaders {
+        assert!(src.contains(&want), "{name} lacks `{want}`");
+    }
+}
+
+#[test]
+fn the_expert_shaders_layout_is_the_rust_one() {
+    // The layout rule is written in three places: each decode and token shader's EXPERT_WAVES and local_size_x, and
+    // dispatch.rs's expert_rows and workgroup math (a workgroup covers expert_rows(k) rows).
+    use kernels::dispatch::{expert_rows, EXPERT_WAVES};
+    let shaders = [
+        ("experts_down", include_str!("../shaders/experts_down.comp")),
+        (
+            "experts_gate_up",
+            include_str!("../shaders/experts_gate_up.comp"),
+        ),
+        (
+            "experts_down_tokens",
+            include_str!("../shaders/experts_down_tokens.comp"),
+        ),
+        (
+            "experts_gate_up_tokens",
+            include_str!("../shaders/experts_gate_up_tokens.comp"),
+        ),
+    ];
+    let waves = format!("const uint EXPERT_WAVES = {EXPERT_WAVES}u;");
+    let threads = format!("layout(local_size_x = {}) in;", EXPERT_WAVES * 32);
+    for (name, src) in shaders {
+        assert!(src.contains(&waves), "{name}.comp lacks `{waves}`");
+        assert!(src.contains(&threads), "{name}.comp lacks `{threads}`");
+        // The row choice: 16 lanes (two rows a subgroup) up to 16 units, else 32.
+        assert!(
+            src.contains("EXPERT_WAVES * rpw"),
+            "{name}.comp's workgroup row math changed"
+        );
+        assert!(
+            src.contains("units <= 16u ? 16u : 32u"),
+            "{name}.comp's lane choice changed from `units <= 16u ? 16u : 32u`"
+        );
+    }
+    // A row of at most 16 units (k <= 512) takes 16 lanes: two rows a subgroup, 16 rows a workgroup; longer, 8.
+    assert_eq!(expert_rows(32), 2 * EXPERT_WAVES);
+    assert_eq!(expert_rows(512), 16);
+    assert_eq!(expert_rows(544), 8);
+    assert_eq!(expert_rows(2048), 8);
+    assert_eq!(EXPERT_WAVES * 32, 256);
+}
+
+#[test]
+fn the_token_shaders_default_tokens_is_max_tokens() {
+    let want = format!(
+        "layout(constant_id = 0) const uint TOKENS = {}u;",
+        kernels::tokens::MAX_TOKENS
+    );
+    for (name, src) in [
+        (
+            "experts_down_tokens",
+            include_str!("../shaders/experts_down_tokens.comp"),
+        ),
+        (
+            "experts_gate_up_tokens",
+            include_str!("../shaders/experts_gate_up_tokens.comp"),
+        ),
+    ] {
+        assert!(src.contains(&want), "{name}.comp lacks `{want}`");
+    }
 }
 
 /// Caches of `n_ctx` positions holding f16 bits of random values, and the same values as f32 for `ops`.

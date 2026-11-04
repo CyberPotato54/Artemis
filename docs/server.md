@@ -54,11 +54,31 @@ config that names 8080 anywhere. The snapshot pool and parking keep their defaul
 
 ## Changes in recent builds
 
-These changes can affect a config or a client that worked with an earlier build:
+These changes can affect a config or a client that worked with an earlier build.
 
-- The first `serve` that finds no tuned file runs `artemis setup` before it opens the port (about 80 s with the model file in the OS cache, once), and
-  later starts read the tuned file it wrote. `first_run_setup = false` skips the measuring, and `ARTEMIS_TUNED=off`
-  turns the tuned file off (see The tuned file).
+In 0.1.1:
+
+- `special_tokens_in_content` defaults to `false`: the text of a control token in client text stays plain text. A
+  prompt that holds such text tokenizes differently from llama.cpp's, and a request that holds the character U+FDD0
+  gets a 400. A value set in a config file or by the flag is kept, and `special_tokens_in_content = true` gives
+  llama.cpp's tokenization (see Not enforced).
+- A stop string over 1,024 bytes of UTF-8 gets a 400 that names the limit.
+- The GPU must allow a required subgroup size of 32 in compute shaders, with full subgroups and 8 subgroups a
+  workgroup. A GPU that does not is refused at start, and the message names the requirement.
+- A key file that other users can read gets a `config_warning` at start, and the server still starts (see Auth and
+  network).
+- With speculation on, the MTP block's 64 most-routed experts get VRAM slots (116 MiB, taken from the expert cache's
+  budget, so the cache has a few slots a layer less); the new setting `mtp_expert_slots` sets the count. The `load`
+  event's `detail` ends with the count and size the load got (`; 64 MTP expert slots (116 MiB)`), `artemis setup`
+  prints them after each load and its `--json` report's `loads` entries carry `mtp_expert_slots`, and the `stats` log
+  line and `/v1/stats` carry `cache.mtp_expert_slots`.
+- Decode is faster, with speculation on and off, and gives the same tokens and logits as before.
+
+In 0.1.0:
+
+- The first `serve` that finds no tuned file runs `artemis setup` before it opens the port (about 80 s with the model
+  file in the OS cache, once), and later starts read the tuned file it wrote. `first_run_setup = false` skips the
+  measuring, and `ARTEMIS_TUNED=off` turns the tuned file off (see The tuned file).
 - A relative `model`, `api_key_file` or `log_dir` in a config file is now read from the config file's folder. A flag's
   relative path is still read from the working directory. `~` is not expanded.
 - A request with an `Origin` header gets a 403 unless `allowed_origins` lists the origin (Auth and network).
@@ -113,9 +133,10 @@ given alone it means `true`.
 | `log_keep_days` | `--log-keep-days` | `14` | Days of request logs to keep. When the server starts, and when the log moves to a new day's file, it removes the files `artemis-YYYY-MM-DD.jsonl` in `log_dir` dated that many days before today or earlier (with 14 on 2026-11-14, the files from 2026-11-01 on stay). It touches only names of exactly that form with a real date, so a copy such as `artemis-2026-10-01.jsonl.bak`, `artemis-latest.jsonl` and any other file in a shared folder stay. The unit is calendar days in UTC, so with 1 only today's file stays and the previous day's file goes as the day changes, even though its last lines are minutes old; use 2 or more to keep a full day behind. 0 keeps every file. A file that cannot be removed is left, and nothing fails. |
 | `device_uuid` | `--device-uuid` | unset (auto) | Use the GPU with this UUID: 32 hex digits, with or without dashes. By default the engine picks the discrete GPU. |
 | `cache_slots` | `--cache-slots` | unset (auto) | The most expert-cache slots per layer the engine will hold, 0 to 256 (a layer has 256 experts; a larger value refuses the start). With `0` every expert is read from host memory. By default the cache is sized to the VRAM left after the model loads. |
+| `mtp_expert_slots` | `--mtp-expert-slots` | `64` | VRAM slots for the MTP block's most-routed experts, 0 to 256 (a larger value refuses the start). Each slot holds one expert (1.8 MiB), so 64 slots take 116 MiB, which comes out of the expert cache's budget (see Memory, MTP). `0` turns the slots off: the block reads all its experts from host memory and the cache keeps those 116 MiB. It has no effect with `enabled = false` or without `"mtp"` in `sources`. |
 | `f32_prefill` | `--f32-prefill` | `false` | Prefill with the f32 kernels instead of the split-f16 cooperative-matrix kernels. Slower; for comparisons and for a prompt that overflows f16. |
 | `allow_custom_template` | `--allow-custom-template` | `false` | Start with a GGUF whose chat template differs from the one Artemis is tested with. Without it that start is refused. The server writes a `config_warning` naming the template's sha256. The vocabulary has no such switch. |
-| `special_tokens_in_content` | `--special-tokens-in-content` | `true` | Whether the text of a control token in client text (a message, a file an agent read, a tool result, a tool's schema) is read as that token. `true` parses special tokens everywhere, as llama.cpp does. With `false` the text stays plain text and the template's own turn markers stay tokens (see Not enforced). A request that holds the character U+FDD0, which the server uses internally in this mode, is then a 400. |
+| `special_tokens_in_content` | `--special-tokens-in-content` | `false` | Whether the text of a control token in client text (a message, a file an agent read, a tool result, a tool's schema) is read as that token. `false` keeps it plain text, so a file an agent reads cannot forge a turn; the template's own turn markers stay tokens (see Not enforced). A request that holds the character U+FDD0, which the server uses internally in this mode, is then a 400. `true` parses special tokens everywhere, as llama.cpp does. |
 | `anthropic_thinking` | `--anthropic-thinking` | `true` | Whether a `/v1/messages` request that states no thinking (it sends neither `thinking` nor `output_config.effort`, or only an unknown type or effort) thinks when `thinking` is on. `true` is what llama.cpp's server does. With `false` such a request does not think, which is what Anthropic's API means by an absent field; a request that states thinking is unchanged, and so is the OpenAI endpoint. |
 | `first_run_setup` | `--first-run-setup` | `true` | Whether the first `serve` that finds no tuned file runs `artemis setup` to measure this PC before it opens the port (see The tuned file). `false` skips that, so a server whose restarts must stay short never pauses to measure; run `artemis setup` beforehand instead. Given alone the flag means `true`. |
 
@@ -141,7 +162,7 @@ too.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `enabled` | `true` | `false` is the rollback: today's one-token decode, with nothing allocated for speculation. `true` with the default `sources` loads the MTP block, which costs about 58.5 MiB of VRAM and 464 MiB of host memory (see Memory, MTP). Lookup alone costs no VRAM up to a `ctx` of about 170K at the default prefill chunk of 2,048; above that, the verify's attention buffers outgrow prefill's work area, by about 90 MiB at `ctx` 262,144, which can cost the cache a slot a layer. `--speculation-enabled false` sets it for one run; given alone the flag means `true`. |
+| `enabled` | `true` | `false` is the rollback: today's one-token decode, with nothing allocated for speculation. `true` with the default `sources` loads the MTP block, which costs about 174.5 MiB of VRAM (58.5 MiB for the block, 116 MiB for its 64 expert slots, set by `mtp_expert_slots`) and 464 MiB of host memory (see Memory, MTP). Lookup alone costs no VRAM up to a `ctx` of about 170K at the default prefill chunk of 2,048; above that, the verify's attention buffers outgrow prefill's work area, by about 90 MiB at `ctx` 262,144, which can cost the cache a slot a layer. `--speculation-enabled false` sets it for one run; given alone the flag means `true`. |
 | `sources` | `["lookup", "mtp"]` | Which sources draft: `"lookup"` (prompt lookup) and `"mtp"` (the model's MTP block). The list names which run; its order does nothing, and `source_choice` says how a step picks between them. An unknown name, a name listed twice and an empty list are each refused (to turn speculation off set `enabled = false`). `--speculation-sources lookup` sets it for one run (comma-separated); the file's list is replaced. `artemis generate` and `spec-check` take the same list as `--sources`. |
 | `max_draft` | `4` | The most draft tokens one step checks, from 1 to 15. The default is the faster of 3 and 4 on the speed prompts (4: the edit prompt ran about 1% faster over several rounds, within run noise; the medians of six tied). |
 | `ngram_min` | `2` | Prompt lookup's shortest n-gram, at least 1. |
@@ -245,6 +266,9 @@ finds no tuned file and `first_run_setup` is `true` (the default), and opens the
   that was interrupted writes `setup_failed` to the log.
 - **Nothing on failure.** An error at any step (a refused model, a missing GPU, too little memory, a load that fails, a
   full disk) writes no tuned file and leaves an existing one as it was.
+- **Load report.** After each model load setup prints the expert slots per layer and, when the MTP block got VRAM slots,
+  their count and size (`; 64 MTP expert slots (116 MiB)`). The `--json` report's `loads` entries carry
+  `mtp_expert_slots` (0 when the load had none).
 - **Log lines.** `setup_start` (`reason` is `first run` or `asked`, and `path`), `setup_done` (`seconds`, `limit_hit`,
   `target`, `gpu_name`, `vram_bytes`, `cache_slots`, `scores`, `enabled`, `sources`, `priors`, `measured_slope_ms`,
   `measured_mtp_d1_ms`, `expected_tok_s`, `path`) and `setup_failed` (`message`). `enabled`, `sources` and `priors` are
@@ -284,7 +308,7 @@ Any other path is a 404 and a wrong method a 405, in the path's error shape.
 prefill. The body is:
 
 ```json
-{"service":"artemis","status":"ready","version":"0.1.0","loaded":true,"model":"qwen3.6-35b-a3b","max_context":65536,"api_key":true}
+{"service":"artemis","status":"ready","version":"0.1.1","loaded":true,"model":"qwen3.6-35b-a3b","max_context":65536,"api_key":true}
 ```
 
 | `status` | HTTP | Meaning |
@@ -303,7 +327,7 @@ says whether a key is set, and `version` is the binary's version. `service` is `
 while the engine is stuck. The body is:
 
 ```json
-{"object":"stats","uptime_s":5400,"state":"ready","progress":{"ticks":812345,"pending":0},"age_s":12.4,"log_write_failures":0,"stats":{"snapshots_held":3,"pool_bytes_used":1992294400,"pool_bytes_limit":8589934592,"restores":41,"restore_bytes":2583691264,"reused_tokens":318400,"prefilled_tokens":96210,"evicted_protected":0,"evicted_unprotected":2,"park_errors":0,"chunks_refused":0,"loads":1,"device_losses":0,"after_done_errors":0,"parked_snapshots":0,"cache":{"slots_per_layer":131,"hits":9120344,"misses":1204551,"staged":88123,"cpu_misses":0,"cpu_timeouts":0,"longest_submit_us":151000},"spec":{"steps":1840,"plain_steps":2210,"drafted":7360,"accepted":4210,"replays":1120,"accept_rate":{"lookup":0.71},"by_size":[{"t":1,"steps":2210,"mean_ms":9.1,"mean_miss_mib":38.2,"tokens":2210},{"t":5,"steps":1840,"mean_ms":14.8,"mean_miss_mib":71.5,"tokens":6050}],"mtp_depth_rates":[],"mtp_draft":[]}}}
+{"object":"stats","uptime_s":5400,"state":"ready","progress":{"ticks":812345,"pending":0},"age_s":12.4,"log_write_failures":0,"stats":{"snapshots_held":3,"pool_bytes_used":1992294400,"pool_bytes_limit":8589934592,"restores":41,"restore_bytes":2583691264,"reused_tokens":318400,"prefilled_tokens":96210,"evicted_protected":0,"evicted_unprotected":2,"park_errors":0,"chunks_refused":0,"loads":1,"device_losses":0,"after_done_errors":0,"parked_snapshots":0,"cache":{"slots_per_layer":131,"mtp_expert_slots":64,"hits":9120344,"misses":1204551,"staged":88123,"cpu_misses":0,"cpu_timeouts":0,"longest_submit_us":151000},"spec":{"steps":1840,"plain_steps":2210,"drafted":7360,"accepted":4210,"replays":1120,"accept_rate":{"lookup":0.71},"by_size":[{"t":1,"steps":2210,"mean_ms":9.1,"mean_miss_mib":38.2,"tokens":2210},{"t":5,"steps":1840,"mean_ms":14.8,"mean_miss_mib":71.5,"tokens":6050}],"mtp_depth_rates":[],"mtp_draft":[]}}}
 ```
 
 | Field | Meaning |
@@ -313,7 +337,7 @@ while the engine is stuck. The body is:
 | `progress` | The watchdog's inputs: `ticks`, a counter that moves whenever the engine does something (a token, a prefill segment, a finished command, a load or unload ending, and during a load each weight tensor and each layer of expert copies), and `pending`, the work the engine was given and has not finished. |
 | `age_s` | Seconds since the engine last answered a stats question; `null` before its first answer. |
 | `log_write_failures` | Log lines that could not be written since the start (see Logs). |
-| `stats` | The engine's counters at that answer, `null` before the first. `cache` and `spec` inside it are `null` while no model is loaded (`spec` also with speculation off); their counters start again at each load. |
+| `stats` | The engine's counters at that answer, `null` before the first. `cache` and `spec` inside it are `null` while no model is loaded (`spec` also with speculation off); their counters start again at each load. `cache.mtp_expert_slots` is the number of VRAM slots the MTP block got at the load (0 when none). |
 
 `stats.spec` counts speculation since the last load, in numbers only (no draft or output text). `mtp_depth_rates` and
 `mtp_draft` are always present, and empty until MTP has drafted; once it has, `accept_rate` also lists `"mtp"`, as in
@@ -388,7 +412,7 @@ Rejected with a 400, because ignoring them would break the client's contract:
 - OpenAI `response_format` of `json_object` or `json_schema`, and Anthropic `output_config.format` (structured
   outputs). There are no grammars.
 - `top_logprobs` above 20, or without `logprobs: true`.
-- More than 16 stop strings.
+- More than 16 stop strings, or a stop string over 1,024 bytes.
 - An unknown OpenAI `reasoning_effort` value, a `chat_template_kwargs.enable_thinking` that is not a boolean, an
   unknown `tool_choice` string or Anthropic `tool_choice` type, a missing `max_tokens` on `/v1/messages`, and any field
   of the wrong type (the message names the field).
@@ -398,7 +422,7 @@ Fields that are used:
 - Sampling: `temperature`, `top_p`, `top_k`, `min_p`, `presence_penalty`, `seed` (a negative seed means random).
 - `max_tokens` and `max_completion_tokens` are clamped to what is left of the context after the prompt, rather than
   refused: some agents ask for 32,000 or more. If OpenAI's is absent, the room left is used.
-- `stop` and `stop_sequences`.
+- `stop` and `stop_sequences`: at most 16, each at most 1,024 bytes.
 - `logprobs` with `top_logprobs` 0 to 20 on OpenAI chat (the content tokens only; reasoning, tool-call and forced
   tokens carry none). Anthropic has no logprobs.
 - `tool_choice` `auto` (the default) and `none`. `none` renders the prompt without the tools, so a `<tool_call>` in the
@@ -434,17 +458,17 @@ closes the reasoning block and the reply goes on. The request's log line says so
 - **No grammars.** Structured outputs, JSON mode and schema-constrained output are refused (above), not approximated.
 - **One request at a time.** The engine runs one sequence. Requests queue first in, first out; up to 64 wait, and the
   65th gets a 503 at once.
-- **Special tokens in message text are parsed as control tokens, by default.** The whole rendered prompt is tokenized
-  with special tokens on, as llama.cpp does. A `<|im_start|>` in a file an agent reads or in a tool result becomes a
-  real turn marker, so a tool result can forge a turn. With `special_tokens_in_content = false`, the 27 control tokens
-  (`<|im_start|>`, `<|im_end|>`, `<|endoftext|>` and the vision, FIM, audio and TTS markers) are plain text wherever
-  they appear in client text: in message content, reasoning, tool-call names and arguments, and tool definitions. The
+- **Special tokens in message text are plain text, by default.** With `special_tokens_in_content = false`, the 27
+  control tokens (`<|im_start|>`, `<|im_end|>`, `<|endoftext|>` and the vision, FIM, audio and TTS markers) are plain
+  text wherever they appear in client text: in message content, reasoning, tool-call names and arguments, and tool
+  definitions. A `<|im_start|>` in a file an agent reads or in a tool result cannot become a turn marker. The
   template's own turn markers stay tokens, and the six tags `<think>`, `</think>`, `<tool_call>`, `</tool_call>`,
   `<tool_response>` and `</tool_response>` still tokenize as tags, as in llama.cpp with special parsing off. A prompt
-  with such text then tokenizes differently from llama.cpp's; a prompt with none tokenizes the same either way. The
-  mode is recommended for agents that read untrusted files. This holds for the pinned chat template; with
-  `allow_custom_template` it depends on the literals the custom template puts around client text. Without
-  `special_tokens_in_content = false`, do not put untrusted text in front of a model whose output you act on.
+  with such text then tokenizes differently from llama.cpp's; a prompt with none tokenizes the same either way. This
+  holds for the pinned chat template; with `allow_custom_template` it depends on the literals the custom template puts
+  around client text. With `special_tokens_in_content = true` the whole rendered prompt is tokenized with special
+  tokens on, as llama.cpp does, and a `<|im_start|>` in a tool result becomes a real turn marker, so a tool result can
+  forge a turn: do not put untrusted text in front of a model whose output you act on.
 
 ## Clients
 
@@ -462,7 +486,11 @@ editor-webview client. An origin with any scheme can be allowed, such as `vscode
   gives the count), and gets a `config_warning` when it is. To make a key of 32 random bytes in base64 (44 characters),
   in Windows PowerShell 5.1 or PowerShell 7:
   `$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)`.
-  Put it on one line in the key file, and keep the file readable only by you.
+  Put it on one line in the key file, and keep the file readable only by you: `chmod 600 <file>` on Linux, and on
+  Windows `icacls <file> /inheritance:r /grant:r "${env:USERNAME}:(R,W)"`. At start-up the server logs a
+  `config_warning` and still starts when the file's mode has a group or other bit set (Linux), or when its ACL lets
+  Everyone, Users, Authenticated Users, Guests, Interactive or Anonymous read it (Windows). A file whose permissions
+  cannot be read gives no warning.
 - **Presenting it:** `Authorization: Bearer <key>` or `x-api-key: <key>`, compared in constant time.
 - **Order:** auth runs before the body is read, so an empty or invalid body with a wrong key is a 401, not a 400. Every
   `/v1/*` path needs the key, `/v1/load` and `/v1/unload` included. `/health` never does.
@@ -600,7 +628,7 @@ The lifecycle lines carry `time` and an `event`:
 | `setup_start` | `reason`, `path` | Setup began measuring. `reason` is `first run` (`serve` found no tuned file) or `asked` (`artemis setup`); `path` is the tuned file it will write. |
 | `setup_done` | `seconds`, `limit_hit`, `target`, `gpu_name`, `vram_bytes`, `cache_slots`, `scores`, `enabled`, `sources`, `priors`, `measured_slope_ms`, `measured_mtp_d1_ms`, `expected_tok_s`, `path` | Setup wrote the tuned file. `scores` are the decode speeds in tok/s by candidate; `enabled`, `sources` and `priors` (`cost_slope_ms` and `mtp_cost_ms`, or `null`) are the values the server will run with (setup's choice, or your own value for a key you set); `expected_tok_s` is 0 when nothing was measured. |
 | `setup_failed` | `message` | Setup stopped without writing the tuned file. `serve` then exits 1 with the same message. |
-| `load` | `seconds`, `detail`, `slots_per_layer`, `vram_used_mib`, `pool_limit_gib`, `pool_cut`, `unparked` | A model loaded. `detail` names the device and whether the load retried with a smaller cache. `slots_per_layer` is the expert cache size, `vram_used_mib` the VRAM the load took, `pool_limit_gib` the snapshot pool's limit at this load, `pool_cut` whether it is below `snapshot_pool_gib`, and `unparked` the number of parked snapshots restored into the pool. |
+| `load` | `seconds`, `detail`, `slots_per_layer`, `vram_used_mib`, `pool_limit_gib`, `pool_cut`, `unparked` | A model loaded. `detail` names the device and whether the load retried with a smaller cache, and ends with `; 64 MTP expert slots (116 MiB)` (the count and size the load got) when the MTP block has VRAM slots. `slots_per_layer` is the expert cache size, `vram_used_mib` the VRAM the load took, `pool_limit_gib` the snapshot pool's limit at this load, `pool_cut` whether it is below `snapshot_pool_gib`, and `unparked` the number of parked snapshots restored into the pool. |
 | `load_failed` | `message` | A load did not finish (a lazy load, `/v1/load` or the load at start). The message is the engine's, never a request's text. |
 | `reload_failed` | `message` | The reload after a GPU loss did not finish. The message is the engine's. |
 | `unload` | `cause` | `idle`, `request` (`/v1/unload`) or `shutdown`. |
@@ -696,8 +724,16 @@ library and never changes a log: `python -I tools/py/request_quality.py LOG_DIR 
   machine it was built on; the VRAM side is sized to what the GPU has free at load.
 - **MTP.** With `"mtp"` in `sources` (the default) and speculation on, the load adds the MTP block: about 40 MiB of
   its weights in VRAM, its KV (`mtp_ctx` rows, 16 MiB at the default) and the hidden-row ring (2 MiB), about 58.5 MiB of
-  VRAM in all, which comes out of the expert cache (under one slot a layer); and 464 MiB of its experts in host memory,
-  on top of the 18.7 GiB pin. `sources = ["lookup"]` or `enabled = false` loads none of it.
+  VRAM in all; and 464 MiB of its experts in host memory, on top of the 18.7 GiB pin. It also loads `mtp_expert_slots`
+  VRAM slots (64 by default, 1.8 MiB each, 116 MiB in all) that hold the block's most-routed experts, so the draft
+  pass reads them from VRAM instead of over PCIe. The slots start empty and fill from the block's own routes while the
+  server runs. The block and its slots together take about 174.5 MiB of VRAM, which comes out of the expert cache, never
+  on top of it: on the 16 GB card at the default `ctx` the cache holds about two slots a layer fewer than without
+  the slots. On a card with less room the cache keeps its slots first, and the MTP slots take what is left beside it
+  (at least 48 cache slots a layer, or all it was asked for, before the MTP slots are cut); with no room for one
+  they are off. Set `mtp_expert_slots = 0` to give the 116 MiB back to the cache (the block then reads its experts
+  from host memory).
+  `sources = ["lookup"]` or `enabled = false` loads none of it.
 - **The pool.** The snapshot pool lives in host RAM beside the pin, up to `snapshot_pool_gib`. At each load the engine
   cuts it to `min(snapshot_pool_gib, whole GiB of (available - 4 GiB))`, where `available` is the lesser of what the
   pinned heap has left and what the OS reports free. A pool cut under 1 GiB is 0: reuse is off, and the server runs

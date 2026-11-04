@@ -16,6 +16,23 @@ pub fn greedy(logits: &[f32]) -> u32 {
     best as u32
 }
 
+/// The first non-finite logit's index and value, or `None` when every one is finite: the check each row read makes
+/// before the sampler sees it. A pass over blocks without an early exit (it vectorizes, about 16 µs for the model's
+/// 248,320 logits against 89 for the scan) says whether there is one; only then does the scan find it.
+pub(crate) fn first_non_finite(logits: &[f32]) -> Option<(usize, f32)> {
+    let all_finite = logits
+        .chunks(1024)
+        .all(|block| block.iter().fold(true, |ok, v| ok & v.is_finite()));
+    if all_finite {
+        return None;
+    }
+    logits
+        .iter()
+        .enumerate()
+        .find(|(_, v)| !v.is_finite())
+        .map(|(i, &v)| (i, v))
+}
+
 /// How the sampler chooses. Each filter has a value that turns it off.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Sampling {
@@ -310,30 +327,52 @@ fn penalized_candidates(logits: &[f32], seen: &BTreeSet<u32>, pen: f32) -> Vec<(
 /// `total_cmp`, then the lower id), so these are exactly the `k` pairs `select_nth_unstable_by` keeps, in the order
 /// `sort_unstable_by` gives them. `k` is at least 1. The cost is O(n·k): each kept pair shifts up to `k` others, so
 /// `Sampler::sample` takes it only up to `TOP_K_ONE_PASS_MAX`.
+///
+/// The logits go by in runs of `TOP_K_RUN`. Once `k` are kept, a run with no penalized id whose every logit is below
+/// the k-th best is passed over whole: each of its logits would fail the first test below, so nothing in it would be
+/// kept and the k-th best stays the same through it. That test (a fold without an early exit) vectorizes, so most of the
+/// vocabulary costs one compare a logit. A NaN is never below anything, so a run holding one is read logit by logit.
 fn top_k(logits: &[f32], k: usize, seen: &BTreeSet<u32>, pen: f32) -> Vec<(u32, f32)> {
     let mut seen = seen.iter().map(|&t| t as usize).peekable();
     let mut best: Vec<(u32, f32)> = Vec::with_capacity(k + 1);
-    for (i, &x) in logits.iter().enumerate() {
-        let v = if pen != 0.0 && seen.peek() == Some(&i) {
-            seen.next();
-            x - pen
-        } else {
-            x
-        };
-        let c = (i as u32, v);
-        if best.len() == k {
-            // Most logits fall below the k-th outright; a near one (equal, or a signed zero) takes the full comparison.
-            let last = best[k - 1];
-            if v < last.1 || rank(&last, &c) == Ordering::Less {
+    for (r, run) in logits.chunks(TOP_K_RUN).enumerate() {
+        let start = r * TOP_K_RUN;
+        let end = start + run.len();
+        // Every penalized id before `start` has been taken from `seen`, so this is the next one at or after it.
+        let penalized = pen != 0.0 && seen.peek().is_some_and(|&t| t < end);
+        if best.len() == k && !penalized {
+            let floor = best[k - 1].1;
+            if run.iter().fold(true, |below, &x| below & (x < floor)) {
                 continue;
             }
         }
-        let at = best.partition_point(|b| rank(b, &c) == Ordering::Less);
-        best.insert(at, c);
-        best.truncate(k);
+        for (j, &x) in run.iter().enumerate() {
+            let i = start + j;
+            let v = if pen != 0.0 && seen.peek() == Some(&i) {
+                seen.next();
+                x - pen
+            } else {
+                x
+            };
+            let c = (i as u32, v);
+            if best.len() == k {
+                // Most logits fall below the k-th outright; a near one (equal, or a signed zero) takes the full
+                // comparison.
+                let last = best[k - 1];
+                if v < last.1 || rank(&last, &c) == Ordering::Less {
+                    continue;
+                }
+            }
+            let at = best.partition_point(|b| rank(b, &c) == Ordering::Less);
+            best.insert(at, c);
+            best.truncate(k);
+        }
     }
     best
 }
+
+/// The run `top_k` passes over whole when every logit in it is below its k-th best.
+const TOP_K_RUN: usize = 64;
 
 /// `greedy` over the logits with the presence penalty taken off every seen token, without copying them.
 fn greedy_penalized(logits: &[f32], seen: &BTreeSet<u32>, pen: f32) -> u32 {
@@ -648,32 +687,42 @@ mod tests {
         assert!(cases > 10_000);
     }
 
+    /// The sampler before the one-pass top-k: every candidate, penalized, then selected and sorted by
+    /// `draw_full_sort`.
+    fn reference(s: &mut Sampler, l: &[f32]) -> u32 {
+        let mut cand = candidates(l);
+        if s.s.presence_penalty != 0.0 {
+            for &t in &s.seen {
+                cand[t as usize].1 -= s.s.presence_penalty;
+            }
+        }
+        let t = s.draw_full_sort(cand);
+        s.seen.insert(t);
+        t
+    }
+
+    /// The k best by selection over every penalized candidate, as (id, logit bits), best first.
+    fn selected(l: &[f32], k: usize, seen: &BTreeSet<u32>, pen: f32) -> Vec<(u32, u32)> {
+        let mut cand = penalized_candidates(l, seen, pen);
+        cand.select_nth_unstable_by(k - 1, rank);
+        cand.truncate(k);
+        cand.sort_unstable_by(rank);
+        cand.iter().map(|c| (c.0, c.1.to_bits())).collect()
+    }
+
+    /// `top_k`'s pairs as (id, logit bits).
+    fn kept(l: &[f32], k: usize, seen: &BTreeSet<u32>, pen: f32) -> Vec<(u32, u32)> {
+        top_k(l, k, seen, pen)
+            .iter()
+            .map(|c| (c.0, c.1.to_bits()))
+            .collect()
+    }
+
     /// The one-pass top-k keeps what selecting from every candidate keeps, and `sample` draws the same tokens
     /// either way: spread, heavily tied and signed-zero logits (the zeros the top values, the cut on the +0/-0 edge), k
     /// from 1 to one short of the vocabulary, with and without the presence penalty.
     #[test]
     fn the_one_pass_top_k_draws_the_selections_tokens() {
-        // The sampler before the one-pass top-k: every candidate, penalized, then selected and sorted by
-        // `draw_full_sort`.
-        fn reference(s: &mut Sampler, l: &[f32]) -> u32 {
-            let mut cand = candidates(l);
-            if s.s.presence_penalty != 0.0 {
-                for &t in &s.seen {
-                    cand[t as usize].1 -= s.s.presence_penalty;
-                }
-            }
-            let t = s.draw_full_sort(cand);
-            s.seen.insert(t);
-            t
-        }
-        // The k best by selection over every penalized candidate, as (id, logit bits), best first.
-        fn selected(l: &[f32], k: usize, seen: &BTreeSet<u32>, pen: f32) -> Vec<(u32, u32)> {
-            let mut cand = penalized_candidates(l, seen, pen);
-            cand.select_nth_unstable_by(k - 1, rank);
-            cand.truncate(k);
-            cand.sort_unstable_by(rank);
-            cand.iter().map(|c| (c.0, c.1.to_bits())).collect()
-        }
         let mut gen = Rng::new(31);
         let mut cases = 0;
         for n in [2usize, 3, 50, 5_000] {
@@ -748,6 +797,207 @@ mod tests {
         );
         assert!(!takes_one_pass(0, 100) && !takes_one_pass(257, 248_320) && !takes_one_pass(5, 5));
         assert!(!takes_one_pass(6, 5) && !takes_one_pass(1_000, 248_320));
+    }
+
+    /// The one-pass top-k at the model's vocabulary, where whole runs of low logits can be passed over: ties with the
+    /// k-th best in a later run, a penalized id inside a low run (a negative penalty lifts it into the top), the best
+    /// logits on the runs' edges and in the last run (a full 64 wide, as 248,320 is a multiple of 64; the short tail is
+    /// pinned by `the_top_k_reads_a_short_tail_run`). Kept pairs and drawn tokens equal the selection's.
+    #[test]
+    fn the_top_k_over_a_whole_vocabulary_keeps_ties_and_penalized_ids_in_low_runs() {
+        const N: usize = 248_320;
+        let mut gen = Rng::new(77);
+        let base: Vec<f32> = (0..N).map(|_| gen.unit() as f32 * 4.0 - 8.0).collect();
+        let mut cases = 0;
+        for plant in 0..5 {
+            let mut l = base.clone();
+            match plant {
+                // Twenty high logits early, then the 20th best's value again at ids far past it, at a run's start,
+                // middle and end.
+                0 => {
+                    for i in 0..20 {
+                        l[i * 7] = 10.0 - i as f32 * 0.25;
+                    }
+                    for &i in &[1_024, 1_087, 1_151, 200_000, N - 1] {
+                        l[i] = 10.0 - 19.0 * 0.25;
+                    }
+                }
+                // The top values on the edges of 64-wide runs and in the last run.
+                1 => {
+                    for (j, &i) in [63, 64, 127, 128, 4_095, 4_096, N - 2, N - 1]
+                        .iter()
+                        .enumerate()
+                    {
+                        l[i] = 12.0 - j as f32;
+                    }
+                }
+                // Signed zeros as the top values, spread over the whole row.
+                2 => {
+                    for i in (0..N).step_by(9_973) {
+                        l[i] = if i % 2 == 0 { 0.0 } else { -0.0 };
+                    }
+                }
+                // Every logit equal.
+                3 => l.iter_mut().for_each(|x| *x = 1.5),
+                // Spread high logits everywhere.
+                _ => {
+                    for i in (0..N).step_by(1_009) {
+                        l[i] = 5.0 + gen.unit() as f32;
+                    }
+                }
+            }
+            for k in [1usize, 2, 20, 256] {
+                for pen in [0.0f32, 1.5, -6.0] {
+                    let s = Sampling {
+                        temp: 0.6,
+                        top_k: k,
+                        top_p: 0.95,
+                        min_p: 0.0,
+                        presence_penalty: pen,
+                    };
+                    let (mut a, mut b) = (Sampler::new(s, 3), Sampler::new(s, 3));
+                    // Ids already returned, in low runs and high ones; -6 lifts a low one past the rest.
+                    for t in [5u32, 640, 100_003, N as u32 - 1] {
+                        a.seen.insert(t);
+                        b.seen.insert(t);
+                    }
+                    for step in 0..4 {
+                        assert_eq!(
+                            kept(&l, k, &b.seen, pen),
+                            selected(&l, k, &b.seen, pen),
+                            "plant {plant} k {k} pen {pen} step {step}"
+                        );
+                        let want = reference(&mut a, &l);
+                        assert_eq!(
+                            b.sample(&l),
+                            want,
+                            "plant {plant} k {k} pen {pen} step {step}"
+                        );
+                        cases += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(cases, 5 * 4 * 3 * 4);
+        // With -6 the low id 100,003 (about -6 before it) comes first.
+        let seen: BTreeSet<u32> = [100_003].into();
+        assert_eq!(top_k(&base, 1, &seen, -6.0)[0].0, 100_003);
+    }
+
+    /// A vocabulary whose length is not a multiple of 64, so the last run is short: the k-th best sits in that tail,
+    /// alone and tied with a logit in an earlier run.
+    #[test]
+    fn the_top_k_reads_a_short_tail_run() {
+        const N: usize = 64 * 3 + 17;
+        assert_ne!(N % TOP_K_RUN, 0);
+        let none = BTreeSet::new();
+        for k in [1usize, 2, 5, 20] {
+            for tail_value in [3.0f32, 2.0] {
+                let mut l: Vec<f32> = (0..N).map(|i| -10.0 - (i % 7) as f32 * 0.5).collect();
+                // k - 1 high logits in the first run, then the k-th best in the tail (past id 192), once above and
+                // once tied with an earlier run's logit.
+                for (j, x) in l.iter_mut().enumerate().take(k - 1) {
+                    *x = 10.0 - j as f32 * 0.1;
+                }
+                l[N - 5] = tail_value;
+                l[100] = 2.0;
+                assert_eq!(
+                    kept(&l, k, &none, 0.0),
+                    selected(&l, k, &none, 0.0),
+                    "k {k} tail {tail_value}"
+                );
+                let got = top_k(&l, k, &none, 0.0);
+                let last = got.last().unwrap().0 as usize;
+                // Above the earlier run's 2.0 the tail id is the k-th best; tied with it, the lower id 100 is.
+                assert_eq!(last, if tail_value == 3.0 { N - 5 } else { 100 });
+                // The penalty on a tail id lifts it into the top too.
+                let seen: BTreeSet<u32> = [N as u32 - 1].into();
+                assert_eq!(
+                    kept(&l, k, &seen, -30.0),
+                    selected(&l, k, &seen, -30.0),
+                    "k {k} penalty on the last id"
+                );
+            }
+        }
+        // The k-th best only in the tail: k = 1, the one high logit is the 17-wide tail's last.
+        let mut l = vec![-1.0f32; N];
+        l[N - 1] = 1.0;
+        assert_eq!(top_k(&l, 1, &none, 0.0), [(N as u32 - 1, 1.0)]);
+    }
+
+    /// NaN and infinite logits (production refuses such rows before sampling, so this pins the equivalence the
+    /// comment on `top_k` claims): the run skip returns the plain scan's pairs, in the plain scan's order.
+    #[test]
+    fn the_top_k_agrees_with_the_plain_scan_on_nan_and_infinite_logits() {
+        let none = BTreeSet::new();
+        let seen: BTreeSet<u32> = [3u32, 70, 200].into();
+        let n = 64 * 4 + 9;
+        for k in [1usize, 2, 3, 20] {
+            for (label, specials) in [
+                ("nan", vec![(65usize, f32::NAN)]),
+                ("+inf", vec![(130, f32::INFINITY)]),
+                (
+                    "-inf",
+                    vec![(10, f32::NEG_INFINITY), (200, f32::NEG_INFINITY)],
+                ),
+                (
+                    "+inf and -inf",
+                    vec![(0, f32::INFINITY), (1, f32::NEG_INFINITY)],
+                ),
+                ("nan and +inf", vec![(255, f32::NAN), (257, f32::INFINITY)]),
+                ("nan in the tail", vec![(n - 1, f32::NAN)]),
+                ("all -inf", (0..n).map(|i| (i, f32::NEG_INFINITY)).collect()),
+            ] {
+                let mut l: Vec<f32> = (0..n).map(|i| -5.0 - (i % 11) as f32 * 0.25).collect();
+                for &(i, v) in &specials {
+                    l[i] = v;
+                }
+                for (pen, seen) in [(0.0f32, &none), (1.5, &seen), (-4.0, &seen)] {
+                    assert_eq!(
+                        kept(&l, k, seen, pen),
+                        selected(&l, k, seen, pen),
+                        "{label} k {k} pen {pen}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_first_non_finite_logit_is_found_wherever_it_is() {
+        let mut l = vec![1.0f32; 248_320];
+        assert_eq!(first_non_finite(&l), None);
+        l[0] = f32::MAX;
+        l[1] = f32::MIN;
+        assert_eq!(
+            first_non_finite(&l),
+            None,
+            "the largest finite values are finite"
+        );
+        let n = l.len();
+        for (at, bad) in [
+            (0, f32::NAN),
+            (1_023, f32::INFINITY),
+            (1_024, f32::NEG_INFINITY),
+            (1_025, f32::NAN),
+            (n - 1, f32::NEG_INFINITY),
+        ] {
+            let mut r = l.clone();
+            r[at] = bad;
+            let (i, v) = first_non_finite(&r).expect("a non-finite logit");
+            assert_eq!((i, v.to_bits()), (at, bad.to_bits()), "at {at}");
+        }
+        // Two of them: the first is named.
+        let mut r = l.clone();
+        r[200_000] = f32::NAN;
+        r[70_000] = f32::INFINITY;
+        assert_eq!(first_non_finite(&r), Some((70_000, f32::INFINITY)));
+        // A row shorter than one block, and an empty one.
+        assert_eq!(
+            first_non_finite(&[2.0, f32::NAN, 3.0]).map(|p| p.0),
+            Some(1)
+        );
+        assert_eq!(first_non_finite(&[]), None);
     }
 
     #[test]

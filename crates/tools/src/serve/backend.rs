@@ -512,6 +512,7 @@ pub fn engine_config(cfg: &server::Config) -> anyhow::Result<engine::Config> {
     }
     e.ctx = cfg.ctx as usize;
     e.cache_slots = cfg.cache_slots.map(|n| n as usize);
+    e.mtp_slots = Some(cfg.mtp_expert_slots as usize);
     e.snapshot_pool_gib = cfg.snapshot_pool_gib;
     e.f32_prefill = cfg.f32_prefill;
     e.speculation = spec_config(&cfg.speculation);
@@ -734,6 +735,7 @@ pub fn to_stats(s: &engine::WorkerStats) -> seam::BackendStats {
         spec: s.spec.as_ref().map(spec_counters),
         cache: s.cache.map(|c| seam::CacheCounters {
             slots_per_layer: u64::try_from(c.slots_per_layer).unwrap_or(u64::MAX),
+            mtp_expert_slots: u64::try_from(c.mtp_slots).unwrap_or(u64::MAX),
             hits: c.hits,
             misses: c.misses,
             staged: c.staged,
@@ -885,6 +887,16 @@ fn untested_gpu_warning_once(warned: &AtomicBool, device: &str) -> Option<String
     (!warned.swap(true, Ordering::SeqCst)).then_some(message)
 }
 
+/// The load line's note on the MTP block's VRAM slots, in `generate`'s wording (`generate::mtp_slots_note`): empty when
+/// the load gave none (speculation off, lookup only, or `mtp_expert_slots = 0`).
+fn mtp_slots_note(slots: usize, bytes: u64) -> String {
+    crate::generate::mtp_slots_note(&engine::Stats {
+        mtp_slots: slots,
+        mtp_slot_bytes: bytes,
+        ..engine::Stats::default()
+    })
+}
+
 /// The `load` line: the time and the device, and the load's figures.
 pub fn load_line(info: &engine::LoadInfo) -> LifecycleLine {
     let retried = match info.retried_with_slots {
@@ -893,7 +905,11 @@ pub fn load_line(info: &engine::LoadInfo) -> LifecycleLine {
     };
     LifecycleLine::Load {
         seconds: info.time.as_secs_f64(),
-        detail: format!("{}; {retried}", info.device),
+        detail: format!(
+            "{}; {retried}{}",
+            info.device,
+            mtp_slots_note(info.mtp_slots, info.mtp_slot_bytes)
+        ),
         slots_per_layer: Some(u32::try_from(info.slots_per_layer).unwrap_or(u32::MAX)),
         vram_used_mib: info.vram_used.map(|b| b as f64 / MIB),
         pool_limit_gib: Some(info.pool.bytes as f64 / GIB),
@@ -1183,6 +1199,11 @@ mod tests {
                 lent_slots: 202,
                 cpu_timeouts: 106,
                 cpu_misses: 107,
+                mtp_slots: 203,
+                mtp_slot_bytes: 204,
+                mtp_hits: 205,
+                mtp_misses: 206,
+                mtp_fills: 207,
             }),
             reuse: engine::ReuseStats {
                 snapshots_held: 1,
@@ -1225,6 +1246,7 @@ mod tests {
                 parked_snapshots: 12,
                 cache: Some(seam::CacheCounters {
                     slots_per_layer: 101,
+                    mtp_expert_slots: 203,
                     hits: 102,
                     misses: 103,
                     staged: 104,
@@ -1387,6 +1409,8 @@ mod tests {
             device_uuid: [7; 16],
             driver: "2.0.355 (0x800163)".into(),
             slots_per_layer: 128,
+            mtp_slots: 0,
+            mtp_slot_bytes: 0,
             vram_weights: 1,
             vram_session: 2,
             vram_used: Some(15 << 30),
@@ -1752,6 +1776,23 @@ mod tests {
             panic!("not a load line");
         };
         assert_eq!(detail, "AMD Radeon RX 9070 XT; retried with 64 slots");
+        // With the MTP's slots the detail says how many and how big, as `generate` does; without them it is silent.
+        let with_slots = engine::LoadInfo {
+            mtp_slots: 64,
+            mtp_slot_bytes: 121_634_816,
+            ..info()
+        };
+        let LifecycleLine::Load { detail, .. } = load_line(&with_slots) else {
+            panic!("not a load line");
+        };
+        assert_eq!(
+            detail,
+            "AMD Radeon RX 9070 XT; first try; 64 MTP expert slots (116 MiB)"
+        );
+        let LifecycleLine::Load { detail, .. } = load_line(&info()) else {
+            panic!("not a load line");
+        };
+        assert!(!detail.contains("MTP"), "{detail}");
         assert_eq!(vram_used_mib, None);
     }
 
@@ -1788,6 +1829,17 @@ mod tests {
             (e.ctx, e.cache_slots, e.snapshot_pool_gib, e.f32_prefill),
             (4096, Some(33), 3, true)
         );
+        assert_eq!(e.mtp_slots, Some(64));
+        assert_eq!(
+            server::Config::default().mtp_expert_slots as usize,
+            engine::MTP_SLOTS
+        );
+        let off = server::Config {
+            model: Some("m.gguf".into()),
+            mtp_expert_slots: 0,
+            ..server::Config::default()
+        };
+        assert_eq!(engine_config(&off).unwrap().mtp_slots, Some(0));
         assert_eq!(e.model, std::path::PathBuf::from("m.gguf"));
         assert_eq!(engine_config(&cfg(None)).unwrap().device_uuid, None);
 

@@ -345,11 +345,7 @@ impl Session {
         let t0 = Instant::now();
         let logits = e.prefill.out.read_f32(4 * (i * nv) as u64, nv);
         self.rows_read += 1;
-        let bad = logits
-            .iter()
-            .enumerate()
-            .find(|(_, v)| !v.is_finite())
-            .map(|(index, &value)| (index, value));
+        let bad = crate::sample::first_non_finite(&logits);
         e.time(CpuPhase::Read, t0);
         if let Some((index, value)) = bad {
             self.fail_step(start);
@@ -984,6 +980,10 @@ impl spec::Verifier for SessionVerifier<'_> {
 
     fn has_mtp(&self) -> bool {
         self.s.has_mtp()
+    }
+
+    fn position(&self) -> Option<usize> {
+        Some(self.s.pos())
     }
 
     fn misses(&self) -> u64 {

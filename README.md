@@ -20,7 +20,7 @@
 
 - Runs Qwen3.6-35B-A3B on one 16 GB GPU, as a local server with the OpenAI and Anthropic APIs on one port. Works with
   OpenCode and Claude Code. Inspired by Strata.
-- Decodes at 137.75 tok/s on an AMD Radeon RX 9070 XT with speculative decoding, 110.01 without. llama.cpp's fastest
+- Decodes at 167.83 tok/s on an AMD Radeon RX 9070 XT with speculative decoding, 116.07 without. llama.cpp's fastest
   configuration on the same PC: 57.90.
 - **Model:** Unsloth's `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf` (21.1 GiB). 35B parameters with about 3B active per token: 40
   layers (30 Gated DeltaNet, 10 full attention), 256 experts per layer with 8 routed per token, and an MTP layer for
@@ -34,7 +34,7 @@
   [Set it up with your coding agent](#set-it-up-with-your-coding-agent).
 
 Artemis is an inference server for Qwen3.6-35B-A3B, written in Rust on Vulkan compute. It serves the OpenAI and
-Anthropic HTTP APIs on one port, and on an AMD Radeon RX 9070 XT it decodes at a median of 137.75 tok/s with
+Anthropic HTTP APIs on one port, and on an AMD Radeon RX 9070 XT it decodes at a median of 167.83 tok/s with
 speculative decoding on.
 
 ## Why it is almost twice as fast
@@ -46,7 +46,7 @@ speculative decoding on.
   its weights straight from pinned system RAM over PCIe and keeps going.
 - **A cache that follows the conversation.** Every layer keeps its hottest experts in VRAM and swaps in the ones the
   conversation keeps routing to: 82.2% of routed experts are found in VRAM on code, against 76.3% with a fixed profile.
-- **Speculative decoding on top.** Prompt lookup and the model's own MTP layer take it from 1.90 to 2.38 times
+- **Speculative decoding on top.** Prompt lookup and the model's own MTP layer take it from 2.00 to 2.90 times
   llama.cpp's decode rate.
 
 ## How it works
@@ -78,7 +78,7 @@ loads with `allow_custom_template`. Vulkan leaves other vendors' GPUs and Linux 
 ## The data
 
 Measured on an AMD Radeon RX 9070 XT (16 GB), AMD Ryzen 9 7950X3D, 64 GB DDR5-6000, PCIe 5.0 x16, Windows 11 Pro, from
-2026-10-31 to 2026-11-02, with Unsloth's `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf`. Method and records:
+2026-10-31 to 2026-11-04, with Unsloth's `Qwen3.6-35B-A3B-UD-Q4_K_M.gguf`. Method and records:
 [docs/evidence.md](docs/evidence.md).
 
 ### Decode
@@ -89,18 +89,18 @@ last row is the median of all six runs.
 
 | Prompt | Speculation off | Prompt lookup only | Lookup and MTP (default) |
 |---|---|---|---|
-| write | 110.01 tok/s | 109.04 | 137.75 |
-| edit | 104.98 | 150.37 | 145.60 |
-| explain | 111.42 | 111.15 | 109.25 |
-| **median of six** | **110.01** | **111.15** | **137.75** |
+| write | 116.07 tok/s | 118.66 | 167.83 |
+| edit | 109.62 | 179.96 | 177.32 |
+| explain | 118.73 | 118.56 | 145.66 |
+| **median of six** | **116.07** | **119.33** | **167.83** |
 
-Speculation makes write 1.25 times and edit 1.39 times as fast. Explain, which is prose, runs at 0.98 of plain decode.
+Speculation makes write 1.45 times, edit 1.62 times and explain, which is prose, 1.23 times as fast as plain decode.
 Details: [docs/evidence.md](docs/evidence.md#decode-and-prefill).
 
 ### Prefill
 
-Prefill runs at 2,125 tok/s on the 27,416-token golden prompt and 1,780 tok/s on the 2,206-token edit prompt with
-speculation off, and at 2,123 and 1,773 tok/s with it on.
+Prefill runs at 2,130 tok/s on the 27,416-token golden prompt and 1,711 tok/s on the 2,206-token edit prompt with
+speculation off, and at 2,132 and 1,700 tok/s with it on.
 
 ### Against llama.cpp
 
@@ -109,18 +109,18 @@ window.
 
 | Engine | Context window | Decode, median of six |
 |---|---|---|
-| Artemis, tuned file from `artemis setup` | 65,536 positions | 135.67 tok/s |
-| Artemis, speculation on | 65,536 positions | 137.75 tok/s |
-| Artemis, speculation off | 65,536 positions | 110.01 tok/s |
+| Artemis, speculation on | 65,536 positions | 167.83 tok/s |
+| Artemis, speculation off | 65,536 positions | 116.07 tok/s |
+| Artemis 0.1.0, tuned file from `artemis setup` | 65,536 positions | 135.67 tok/s |
 | llama.cpp b11509, Vulkan, no speculation, best searched configuration | 65,536 positions | 57.90 tok/s |
 | llama.cpp b11509, Vulkan, no speculation, best searched configuration | 32,768 positions | 65.15 tok/s |
 | llama.cpp b11509, Vulkan, its own MTP drafting, best of 1 to 3 draft tokens | 65,536 positions | 56.36 tok/s |
 | llama.cpp b11509, Vulkan, its own MTP drafting, best of 1 to 3 draft tokens | 32,768 positions | 61.41 tok/s |
 
-With neither engine speculating, at 65,536 positions, Artemis decodes at 1.90 times llama.cpp's rate (110.01 against
-57.90 tok/s), and at 1.69 times llama.cpp's figure at 32,768 positions. With the tuned file the ratios are 2.34 and
-2.08, and with speculation on 2.38 and 2.11. The flags, the searches and decode at long context:
-[docs/evidence.md](docs/evidence.md#against-llamacpp).
+With neither engine speculating, at 65,536 positions, Artemis decodes at 2.00 times llama.cpp's rate (116.07 against
+57.90 tok/s), and at 1.78 times llama.cpp's figure at 32,768 positions. With speculation on the ratios are 2.90 and
+2.58. The tuned-file row was measured on 0.1.0, before this release's speed work. The flags, the searches and decode
+at long context: [docs/evidence.md](docs/evidence.md#against-llamacpp).
 
 ### First run
 
@@ -130,8 +130,8 @@ reason, to a per-user file, `tuned.toml`. Later starts read that file and begin 
 a flag overrides it.
 
 On the RX 9070 XT, with the model file in the OS cache, setup takes 80.4 to 85.8 s and `/health` answers 83.2 s after
-launch. Setup picks speculation on, with prompt lookup and MTP, and the file it writes decodes at 135.67 tok/s, 0.9941
-of the hand-tuned production config's 136.48.
+launch. Setup picks speculation on, with prompt lookup and MTP, and on 0.1.0 the file it wrote decoded at 135.67 tok/s,
+0.9941 of the hand-tuned production config's 136.48 in the same run.
 
 Run `artemis setup --force` after a driver update, a new GPU or a different model file
 ([docs/server.md](docs/server.md#the-tuned-file)). Details:
@@ -157,13 +157,14 @@ Test definitions and bounds: [architecture notes](docs/architecture.md#correctne
 ### Smaller caches
 
 With the 16 GB card's cache capped at 85 and 30 slots a layer, the estimated cache of a 12 GB and an 8 GB card, the
-write prompt decodes at 86.4 tok/s with speculation off and 105.9 with it on at 85 slots, and at 60.6 and 72.7 at 30
+write prompt decodes at 91.4 tok/s with speculation off and 124.3 with it on at 85 slots, and at 63.3 and 79.4 at 30
 slots. Details: [docs/evidence.md](docs/evidence.md#smaller-caches).
 
 ## Requirements
 
 - **GPU:** a discrete GPU with 16 GB of VRAM and Vulkan 1.3 with buffer device address, timeline semaphores, 8- and
-  16-bit storage, `shaderFloat16`, `shaderInt8`, subgroup arithmetic and shuffle, and `VK_EXT_memory_budget`.
+  16-bit storage, `shaderFloat16`, `shaderInt8`, subgroup arithmetic and shuffle, a required subgroup size of 32 in
+  compute shaders (with full subgroups and 8 subgroups a workgroup), and `VK_EXT_memory_budget`.
   `VK_KHR_cooperative_matrix` is optional and gives fast prefill. A missing feature refuses the load with a list of
   what is missing.
 - **System memory:** a loaded model pins about 18.7 GiB of host memory for the experts and the embedding, and 19.2 GiB
@@ -187,8 +188,9 @@ slots. Details: [docs/evidence.md](docs/evidence.md#smaller-caches).
 - Decode reads expert misses over PCIe, so its speed follows the link: at half rate, about 14 GB/s against 28, decode
   runs about 22% slower ([evidence](docs/evidence.md#the-pcie-link)).
 - By default the text of a control token in a message, a file an agent read or a tool result (for example
-  `<|im_start|>`) is read as that token, as llama.cpp does, so untrusted text can forge a turn. Set
-  `special_tokens_in_content = false` to keep it plain text ([docs/server.md](docs/server.md), "Not enforced").
+  `<|im_start|>`) stays plain text, so untrusted text cannot forge a turn. A prompt with such text then tokenizes
+  differently from llama.cpp's. Set `special_tokens_in_content = true` for llama.cpp's parsing, where that text becomes
+  a real token and can forge a turn ([docs/server.md](docs/server.md), "Not enforced").
 
 ## Set it up with your coding agent
 

@@ -715,14 +715,17 @@ fn check_experts(g: &Gpu, rng: &mut Rng, lay: SlotLayout) {
     let ids = [4.0f32, 0.0, 5.0, 2.0];
     let x = rand_f32(rng, lay.n_embd, -1.0, 1.0);
     let case = format!(
-        "{}/{}/{} {}",
+        "{}/{}/{} n_embd {} n_ff {}",
         lay.gate.name(),
         lay.up.name(),
         lay.down.name(),
-        lay.n_embd
+        lay.n_embd,
+        lay.n_ff
     );
     let mut outs = Vec::new();
     for loc in [WHERE_HOST, WHERE_VRAM] {
+        let place = if loc == WHERE_HOST { "HOST" } else { "VRAM" };
+        let case = format!("{case} {place}");
         // The same seed for both, so the HOST and VRAM slots hold the same experts.
         let mut r2 = Rng::new(99);
         let (table, status, slots) = expert_setup(g, &mut r2, &lay, n, loc);
@@ -730,6 +733,15 @@ fn check_experts(g: &Gpu, rng: &mut Rng, lay: SlotLayout) {
         let chosen: Vec<&[u8]> = ids.iter().map(|&e| slots[e as usize].as_slice()).collect();
         let t_act = moe::experts_gate_up(&chosen, &lay, &x);
         check(Kernel::ExpertsGateUp, &case, &act, &t_act);
+        // gate_up is its twin bit for bit as well: its dots are `precise`, `tree32` adds in `red_sum`'s order (a 16-lane
+        // row's first step adds +0.0, as the twin's idle lanes do), and `silu_det` is the twin's. This is the shader
+        // half of AGENTS.md's HOST-path rule (the worker uses the twin's dot order and the same `silu_det`).
+        assert!(
+            act.iter()
+                .zip(&t_act)
+                .all(|(a, b)| a.to_bits() == b.to_bits()),
+            "{case}: experts_gate_up differs from its twin"
+        );
         let t_ye = moe::experts_down(&chosen, &lay, &act);
         check(Kernel::ExpertsDown, &case, &ye, &t_ye);
         // On the kernel's own activations, down is its twin bit for bit: `unit_dot`'s sums are `precise`.
@@ -790,6 +802,33 @@ fn experts_from_host_and_vram_slots() {
             n_ff: 256,
         },
     );
+}
+
+#[test]
+#[ignore = "needs the GPU"]
+fn experts_down_lane_shapes() {
+    // Down's rows of n_ff / 32 units: 64 (n_ff 2048, 32 lanes, two passes) and 24 (n_ff 768, 32 lanes with the last
+    // 8 idle); gate_up's rows of n_embd / 32 units: 24 (768) and 64 (2048). check_experts holds down and gate_up to
+    // their twins bit for bit, HOST and VRAM.
+    let g = Gpu::new();
+    let mut rng = Rng::new(28);
+    for (gate, up, down, n_embd, n_ff) in [
+        (WType::Q5K, WType::Q4K, WType::Q5K, 768, 2048),
+        (WType::Q4K, WType::Q4K, WType::Q6K, 2048, 768),
+        (WType::Q4K, WType::Q5K, WType::Q4K, 768, 1280),
+    ] {
+        check_experts(
+            &g,
+            &mut rng,
+            SlotLayout {
+                gate,
+                up,
+                down,
+                n_embd,
+                n_ff,
+            },
+        );
+    }
 }
 
 #[test]

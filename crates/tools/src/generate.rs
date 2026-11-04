@@ -214,6 +214,14 @@ pub fn mtp_ring_note(clamp: Option<(usize, usize)>) -> String {
     }
 }
 
+/// The load line's note on the MTP block's VRAM slots (K-64): empty when the load gave none.
+pub fn mtp_slots_note(st: &engine::Stats) -> String {
+    match st.mtp_slots {
+        0 => String::new(),
+        n => format!("; {n} MTP expert slots ({} MiB)", st.mtp_slot_bytes >> 20),
+    }
+}
+
 /// The profile line's verify clause: empty without verify steps, else the verify steps' GPU time a step.
 pub fn verify_note(steps: usize, tokens: usize, gpu_us: f64) -> String {
     if steps == 0 {
@@ -552,6 +560,17 @@ pub struct CacheStats {
     pub cpu_timeouts: u64,
     #[serde(default)]
     pub cpu_misses: u64,
+    /// The MTP block's VRAM slots the load gave (K-64; 0 without the MTP), its routed-expert reads in draft passes
+    /// served from them and from host memory, and the experts copied into them (`Stats::mtp_slots`, `mtp_hits`,
+    /// `mtp_misses`, `mtp_fills`). Absent from older records, which read as 0.
+    #[serde(default)]
+    pub mtp_slots: usize,
+    #[serde(default)]
+    pub mtp_slot_hits: u64,
+    #[serde(default)]
+    pub mtp_slot_misses: u64,
+    #[serde(default)]
+    pub mtp_slot_fills: u64,
 }
 
 /// What `generate --json` writes.
@@ -946,6 +965,10 @@ pub fn record(e: &Engine, asked: &Asked, ran: Ran, warm: Option<WarmInfo>) -> Re
             budget_short: st.budget_short,
             cpu_timeouts: st.cpu_timeouts,
             cpu_misses: st.cpu_misses,
+            mtp_slots: st.mtp_slots,
+            mtp_slot_hits: st.mtp_hits,
+            mtp_slot_misses: st.mtp_misses,
+            mtp_slot_fills: st.mtp_fills,
         },
         vram,
         memory,
@@ -1034,6 +1057,10 @@ where
 
     fn has_mtp(&self) -> bool {
         self.0.has_mtp()
+    }
+
+    fn position(&self) -> Option<usize> {
+        self.0.position()
     }
 
     fn misses(&self) -> u64 {
@@ -2694,6 +2721,15 @@ mod tests {
         );
         assert_eq!(mtp_ring_note(None), "");
         assert!(mtp_ring_note(Some((2048, 2032))).contains("2048 to 2032"));
+        assert_eq!(mtp_slots_note(&engine::Stats::default()), "");
+        assert_eq!(
+            mtp_slots_note(&engine::Stats {
+                mtp_slots: 64,
+                mtp_slot_bytes: 121_634_816,
+                ..engine::Stats::default()
+            }),
+            "; 64 MTP expert slots (116 MiB)"
+        );
         assert_eq!(verify_note(0, 0, 0.0), "");
         assert_eq!(
             verify_note(4, 14, 80_000.0),

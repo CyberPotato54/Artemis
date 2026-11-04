@@ -113,6 +113,19 @@ alternatives) before changing anything.
   turns it into the gaps per step. Unset, the device opens as before and no command or clock read is added. The log
   holds at most `vk::MAX_TRACE_ENTRIES` submits; the rest, and any submit whose timestamps can't be read or calibrated,
   are counted (`Engine::take_submit_trace_dropped`) and reported by `generate`, never failing a step.
+- The MTP route log: with `ARTEMIS_MTP_ROUTES=FILE` set (read once, off when unset or empty), each MTP draft pass
+  appends one JSON line per draft row to FILE, `{"pass":N,"pos":P,"j":J,"ids":[...]}`, the eight experts block 40's
+  router picked. The log only copies ids the pass computed, so outputs do not change; unset, and with no MTP slots, no
+  buffer is allocated and no command recorded (the MTP slots copy the same ids for their counts). One file per run:
+  `tools/py/mtp_route_hits.py FILE...` scores how many of the second half's reads the first half's top 16, 32 and 64
+  experts would serve.
+- The MTP top-3 log: with `ARTEMIS_MTP_TOPK=FILE` set (read once, off when unset or empty), each draft row appends
+  `{"pos":P,"depth":D,"ids":[a,b,c],"logits":[x,y,z],"lse":L,"rows":N}` (the head rows' top 3 by logit, ties to the
+  lower id, and their log-sum-exp, computed on the CPU from the rows read back), and the step loop appends
+  `{"pos":P,"pick":T}` for every token it picks. `P` is the position of the row's input token, so a draft row and the
+  pick from the same row share it. Unset, no buffer is allocated (the readback is `MAX_VERIFY` x head rows x 4 bytes
+  when set), nothing is read back and no line is written; the log changes no draft and no logit
+  (`the_topk_log_changes_no_draft_and_no_logit`).
 - The speed gate: `tools/run-gpu-tests.ps1 -Tests speed` runs the spike's write, edit and explain prompts
   (`testdata/speed/`) at seeds 1234 and 1235 and two cold prefills of the 27K-token prompt, then `artemis speed`. It
   also runs the write prompt once with `--base-time` and reports the base time (`artemis speed --base`), never gated.
@@ -175,8 +188,10 @@ alternatives) before changing anything.
   workgroup per 256-position chunk and KV head, serving the 8 query heads that read it, so each cached row is read
   once. Each head's arithmetic is `attn_decode`'s, operation for operation, and the two write the same bits on this
   driver (`the_gqa_attention_writes_attn_decodes_bits`): keep it so, or the step that crosses 3,072 positions changes a
-  result. Neither kernel's sums are `precise`, so that equality rests on the compiler treating the two alike (fusing or
-  not fusing the same products), as `attn_prefill`'s chunk invariance does; the bit test pins it on every gate.
+  result. The verify step runs the GQA form at every length (`attn_tokens_kernel`), so on another driver a difference
+  shows at every length. Neither kernel's sums are `precise`, so that equality rests on the compiler treating the two
+  alike (fusing or not fusing the same products), as `attn_prefill`'s chunk invariance does; the bit test pins it on
+  every gate.
   Plan 6b made decode attention faster with every output bit kept (the example's hashes equal the base's): each lane
   of the old `attn_decode_gqa` read its own position's K row, 16 bytes a load, which held the K pass near 100 GB/s.
   Now each chunk's K goes through shared memory in tiles of 32 positions × 128 values, 16 lanes reading 256 contiguous
@@ -193,10 +208,75 @@ alternatives) before changing anything.
   rows, slots and activations: `matvec` and the expert dispatches assert it, and the engine refuses a misaligned VRAM or
   HOST slot entry (`kernels::dispatch::check_slot_addr`). The sampler takes its top-k in one pass over the logits
   (`sample.rs`'s `top_k`), the same tokens as selecting from every candidate, for k up to 256 (`TOP_K_ONE_PASS_MAX`;
-  the pass is O(n·k), so a larger k keeps the old selection). `generate --base-time` (`Options::base_time`) has decode
-  read a resident expert for every HOST one, for the base time; the speed and hit-rate gates refuse such runs. Test 1's
-  block runs the bit tests and two engine tests that pin the alignment checks (`staging_a_misaligned_slot_is_refused`,
-  `writing_a_misaligned_slot_is_refused`).
+  the pass is O(n·k), so a larger k keeps the old selection). Since plan v011 the pass goes by runs of 64 logits
+  (`TOP_K_RUN`) and skips a run with no penalized id whose every logit is below the k-th best, and each row read
+  (decode, prefill, verify) checks for a non-finite logit with `sample::first_non_finite`, a block pass without an early
+  exit that scans only when one is there; both give the same tokens and the same error as before.
+  `generate --base-time` (`Options::base_time`) has decode read a resident expert for every HOST one, for the base
+  time; the speed and hit-rate gates refuse such runs. Test 1's block runs the bit tests and two engine tests that pin
+  the alignment checks (`staging_a_misaligned_slot_is_refused`, `writing_a_misaligned_slot_is_refused`).
+  Plan v011 made the routed experts' decode kernels (`experts_gate_up`, `experts_down`) faster with every output bit
+  kept (`expert_speed`'s hashes equal the base's in every case). Their pipelines require subgroups of 32
+  (`Kernel::subgroup`, `vk::Device::pipeline_sg`), and red_sum's 32-lane tree runs on subgroup shuffles
+  (`tree32.glsl`): the same pairs in the same order, no shared memory and no barrier. Its added +0.0 on a row of at most
+  16 units comes from a push constant (`zero`), because this driver folds `x + 0.0` to `x`. A row of at most 16 units
+  (the 512-wide down rows) takes 16 lanes, so a subgroup carries two rows and no lane idles; each lane computes one row
+  (`expert_rows`). Q4_K and Q5_K units go through `quant.glsl`'s `kq_load` and `kq_dot` (`lane_sum`): `unit_dot`'s float
+  operations in its order, with four quants unpacked from a word at a time. One layer's call, best of 1,000
+  (`expert_speed`, 2026-11-02, base b0e6739): `experts_gate_up` 273.1 to 333.7 GB/s, `experts_down` on Q5_K rows
+  229.6 to 327.7 and on Q6_K rows 277.5 to 334.0; a Q5_K layer 60.3 to 46.6 µs. The example evicts the caches with a
+  copy, and the new kernels' reads pay for writing its dirty lines back. With a read-only pass after the copy (clean
+  caches, closer to what a decode step leaves; `XS_CLEAN=1 expert_speed --reps 300`) they read about 70% of 640 (gate_up
+  474, down 434 to 443, against the base's 338 and 231 to 299). `spec-check speed` against the base pin, three sets:
+  the off-median 103.1 to 108.4 tok/s, the on-median unchanged (131.7 and 131.6; the verify step runs the token
+  kernels), the completions equal. More rows a lane, and gate and up in separate subgroups, were measured and were
+  slower or no faster.
+  The verify step's token kernels (`experts_gate_up_tokens`, `experts_down_tokens`) then took the same layout, every
+  bit kept (`expert_speed`'s hashes and the identity lines equal): one row a lane, `tree32` once per token, no shared
+  memory, no barrier, the same pinned subgroups and `expert_rows`. A unit's weights are loaded once (`kq_load`, or
+  `unit_load` for the other types) and dotted with each token of the expert's mask (`kq_dot`, `unit_dot_loaded`). The
+  per-token sums are arrays of `TOKENS`, a specialization constant, indexed only by unrolled loop counters, so they stay
+  in registers (the old run-time indexed arrays spilled to scratch): `Kernels` builds a pipeline for each count in
+  `tokens::SPECIALIZED_TOKENS` (2 to 5, `vk::Device::pipeline_spec`) and the general one (`TOKENS` = 16) runs the
+  other counts. `expert_speed` (best of 1,000, 2026-11-02): a Q5_K layer's verify at t = 2 143.4 to 81.4 µs and at
+  t = 5 327.9 to 186.4 µs (`experts_gate_up_tokens` 248 to 404 GB/s, `experts_down_tokens` 195 to 401 at t = 5).
+  `spec-check speed`, two sets: the on-median 132.1 (the decode-kernel build) to 149.8 tok/s, the pin 131.7, the
+  completions equal.
+  The verify form of decode attention (`attn_decode_gqa_tokens`) then got faster with every output bit kept (the
+  example's hashes and the identity lines equal, t = 2 to 5 and 16). Both of its passes were latency bound: one
+  dependent chain a thread in the K pass, and in the V pass one broadcast shared-memory read a multiply-and-add from
+  2-byte V loads. Now its K tiles are 64 positions × 64 values and each thread scores two positions side by side on
+  every query value it reads (each position's chain in attn_decode's order); thread 32g + o sums the 8 dimensions
+  8o .. 8o + 7 of head g, reading V 16 bytes a position; and its grid (`gqa_tokens_grid`) is (query, KV head, chunk),
+  so the workgroups that read one chunk's rows run together. Two queries a workgroup (each chunk read once for both,
+  24 KiB of shared memory) was measured and was slower at every depth: fewer workgroups fit on a compute unit.
+  `attn_decode_speed` times the K pass alone as well (`k_pass_us`: the kernel built with its `K_ONLY` specialization
+  constant set, which both GQA kernels declare and the engine leaves at 0). The verify call at t = 4 with
+  `attn_combine_tokens`, best of 1,000 (2026-11-02, base 2f5563e): 4,096 positions 50.5 to 41.5 µs, 27,000 288.1 to
+  182.7, 65,536 545.8 to 388.2; `attn_decode_gqa` is unchanged.
+  Plan v012 (item 6) then made three of the other decode kernels faster with every output bit kept (`decode_speed`'s
+  hashes, the identity lines and the A/B's completions equal). The decode matvecs (`matvec_{type}`) meet their 32
+  lanes in `tree32.glsl` on pipelines pinned to subgroups of 32, with no shared memory and no barrier. `gdn_step` at
+  128 keys reads its state row 16 bytes at a time into registers and writes it once; its sums and update are written
+  as `fma` (`precise`), the operations the old loops compiled to on this driver, and the unfused or partly fused forms
+  change the bits. The verify step's attention runs `attn_decode_gqa_tokens` at every length the shape allows
+  (`attn_tokens_kernel`), since `attn_decode_gqa` writes `attn_decode`'s bits; decode keeps `ATTN_GQA_FROM`.
+  `decode_speed`, median of 1,000 (2026-11-04, base 13c0260): `delta.qkv` (Q8_0, 8,192 × 2,048) 378 to 385 GB/s,
+  the 512-row Q8_0 matvecs 7 to 9% faster, the output head 568 to 576 GB/s, `gdn_step` 16.3 to 11.8 µs (40.7 to
+  56.0% of 640 GB/s), attention over 2,048 positions at t = 4 180.4 to 35.9 µs and at t = 16 692.1 to 61.9.
+  Two rows a subgroup (x read once for both), 4-byte Q8_0 loads and loading two blocks ahead of their sums were
+  measured and were slower. `spec-check speed`, three sets each, pooled medians over 18 runs a build: the off-median
+  112.4 to 116.1 tok/s and the on-median 163.0 to 169.7 (the median of the set medians: off 113.55 to 115.71, on
+  163.28 to 168.91).
+  The verify matvecs (`matvec_tokens_{type}`) then took the same tree on the same pinned subgroups, and their sums
+  became arrays of `TOKENS`, a specialization constant: `Kernels` builds a pipeline for each count in
+  `tokens::SPECIALIZED_TOKENS` and the general one (16) runs the other counts, as for the experts' token kernels. Each
+  token's sum is still `unit_dot`'s, in its order, and every bit is kept. `decode_speed`, median of 1,000: the dense
+  matvecs a step take 8.25 to 7.16 ms at t = 3 and 10.06 to 8.20 at t = 5; the output head gains at t = 2 and 3 only
+  (889 to 794 µs at 3) and is 11% slower at t = 16. `spec-check speed`, three sets each: the on-median 169.1 to 172.1
+  tok/s pooled over 18 runs a build (set medians 169.40 to 172.07; every B set above every A set); off decodes one
+  token a step and never calls them, and in that session it read 115.8 to 114.8. The stack check's interleaved runs put
+  the stack against the base off at -0.33% warm and -1.68% fresh-state (median of set medians), lower in 4 of 6 rows.
 - The CPU miss path (plan 2e). Off by default: `--cpu-share S` (`Options::cpu_share`, 0.0 to 1.0, default 0;
   `set_cpu_share` changes it between tokens) sends that share of each layer's HOST misses to AVX-512 workers
   (`cpu_miss::share_q8` of 256 experts, the same ones in every layer; below 1/512 it is taken as 0, `path_on`). The plan
@@ -373,9 +453,26 @@ alternatives) before changing anything.
     - **Catch-up** (M5): every step copies its final hidden rows into a ring of `mtp_ring` rows (256); a draft pass first
       writes KV-only rows for every position with no row whose `h` is in the ring. Positions further back stay holes.
     - **`blk.40`'s experts are HOST** (464 MiB of host-cached memory, 486,539,264 B; its non-expert weights are 40.4 MiB
-      of VRAM, about 58.5 MiB with the session's KV and ring). They are never in the expert cache, and their reads are
-      not counted in `decode_misses`. The request line and `generate --json` carry each source's drafted and accepted
-      counts (`spec_drafted_lookup`, `spec_drafted_mtp` and so on); `drafted` and `accepted` stay the sums.
+      of VRAM, about 58.5 MiB with the session's KV and ring). They are never in the trunk's expert cache, and their
+      reads are not counted in `decode_misses`. The request line and `generate --json` carry each source's drafted and
+      accepted counts (`spec_drafted_lookup`, `spec_drafted_mtp` and so on); `drafted` and `accepted` stay the sums.
+    - **The MTP slots** (K-64, `crates/engine/src/mtp_slots.rs`): `Options::mtp_slots` VRAM slots (64 by default, 116
+      MiB; `generate --mtp-slots N`; the server's `mtp_expert_slots` key and `--mtp-expert-slots` flag, 0 to 256, 0 is
+      off) for `blk.40`'s most-routed experts, read through the slot table by the same expert
+      kernels as every other slot, so no bit depends on where an expert lives (test 5's rule). They start empty (every
+      `blk.40` entry HOST) and fill from the block's own routes: each draft row's eight experts are counted (halved
+      every 4,096 rows), and at the start of each draft pass at most 8 experts move toward the most counted (ties to
+      the lower id; a resident gives way only to an expert counted at least 2 more), in the pass's command buffer: the
+      copies, a barrier, `apply_slot_updates` on the `blk.40` entries, a barrier, then the pass. A failed pass empties
+      them and the next pass rewrites every `blk.40` entry. The trunk's planner, policy and budget watch never touch
+      them. **VRAM**: they come out of the cache's budget (`cache::fit_cache_mtp`): the trunk is sized with them held
+      (two trunk slots fewer on the 16 GB card at `--ctx 65536`), kept while the trunk gets every slot it asked for
+      (`--cache-slots 85` and `30` lose none) or at least `MTP_TRUNK_FLOOR` (48); otherwise the trunk is sized alone and
+      the MTP slots take the whole slots left beside it, possibly none. The budget watch retires trunk chunks only; the
+      MTP slots stay for the engine's life (accepted: under desktop pressure on a small card the trunk can fall below
+      the floor while the slots stay, and the watch reads the driver's usage, which includes them).
+      `Stats::mtp_hits` and `mtp_misses` (`generate --json`'s `mtp_slot_hits` and `mtp_slot_misses`) count the block's
+      reads apart from the trunk's.
     - Checks: `artemis-oracle mtp-taps` runs llama.cpp's MTP graph teacher-forced and the CPU reference continues from its
       values at every tap (`artemis dump --cpu --mtp`, `artemis test2-mtp`: test 2's rule over the MTP's taps);
       `artemis mtp-check --tokens <the file given to mtp-taps>` checks the GPU's MTP logits against the oracle's on the real
@@ -412,7 +509,10 @@ alternatives) before changing anything.
   shader's arrays. The cooperative-matrix kernels declare up to 30,720 bytes (`COOP_SHARED_KERNELS`: 20,480 for
   `matmul_cm` and `experts_matmul_cm_down`, 30,720 for `experts_matmul_cm_gate_up` and 29,952 for `attn_prefill_cm`) and
   are built only where the device lists the f16 shape and allows that much (`Kernels::coop`); otherwise prefill runs the
-  f32 kernels. Workgroup counts stay at most 65,535 per dimension (`Recorder::dispatch` asserts it). Whenever a kernel
+  f32 kernels. Workgroup counts stay at most 65,535 per dimension (`Recorder::dispatch` asserts it). A kernel whose
+  reduction runs on subgroup operations pins the subgroup size it assumes (`Kernel::subgroup`: 32 for `experts_gate_up`,
+  `experts_down` and their token forms), and the device must allow a required subgroup size of 32 in compute
+  (`vk::Support::subgroup_size_32`; the load refuses it otherwise). Whenever a kernel
   or its dispatch changes, run the kernel and engine GPU tests once under `VK_LAYER_KHRONOS_validation`
   (`VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation`; `VK_LOADER_DEBUG=layer` shows it loaded): they must report no VUID.
   Plan 1c-ii's first `attn_prefill` (51,904 bytes) passed every test while exceeding the device's limit; only validation

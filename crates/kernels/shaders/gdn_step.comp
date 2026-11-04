@@ -5,7 +5,13 @@
 // The gated delta rule for one token, one workgroup per value head h, which uses key group
 // h % n_group. Thread j owns row j of the head's state M (M[j][i] = S[i][j], key index contiguous):
 //   M[j][·] *= exp(g_h);  u = Σ_i M[j][i]·k_i;  δ = (v_j − u)·β_h;  M[j][i] += k_i·δ;  o_j = (Σ_i M[j][i]·q_i)·scale.
-// Both sums run over i in order, so the twin mirrors them exactly. dk and dv are at most 128.
+// Both sums run over i in order, and the twin sums in the same order. dk and dv are at most 128.
+// Each sum and the update is a fused multiply-add, written as `fma` (and `precise`, so nothing else is fused): what the
+// plain `+=` loops compiled to on this driver, so the bits are theirs (decode_speed's gdn hash at dk = 128, where the
+// unfused and partly fused forms all differ; gpu_verify's identity lines with gdn_seq at dk = 64). With dk = 128 (the
+// model's heads) thread j reads its row 16 bytes at a time into registers, runs both loops on them and writes the row
+// once; other dk take the loops below, which read and write the state one value at a time.
+layout(buffer_reference, std430, buffer_reference_align = 16) buffer StateV4 { vec4 v[]; };
 layout(local_size_x = 128) in;
 layout(push_constant) uniform Push {
     uint64_t q;
@@ -37,19 +43,46 @@ void main() {
     }
     float decay = exp(F32s(p.g).v[h]);
     float b = F32s(p.beta).v[h];
-    F32s m = F32s(p.state + uint64_t(4u * (h * p.dv + j)) * uint64_t(p.dk));
-    float u = 0.0;
+    uint64_t ra = p.state + uint64_t(4u * (h * p.dv + j)) * uint64_t(p.dk);
+    if (p.dk == 128u) {
+        StateV4 mv = StateV4(ra);
+        precise float e[128];
+        precise float u = 0.0;
+        [[unroll]] for (uint i4 = 0u; i4 < 32u; i4++) {
+            vec4 w = mv.v[i4];
+            [[unroll]] for (uint c = 0u; c < 4u; c++) {
+                uint i = 4u * i4 + c;
+                e[i] = w[c] * decay;
+                u = fma(e[i], ks[i], u);
+            }
+        }
+        float delta = (F32s(p.v).v[h * p.dv + j] - u) * b;
+        precise float acc = 0.0;
+        [[unroll]] for (uint i4 = 0u; i4 < 32u; i4++) {
+            precise vec4 w;
+            [[unroll]] for (uint c = 0u; c < 4u; c++) {
+                uint i = 4u * i4 + c;
+                w[c] = fma(ks[i], delta, e[i]);
+                acc = fma(w[c], qs[i], acc);
+            }
+            mv.v[i4] = w;
+        }
+        F32s(p.o).v[h * p.dv + j] = acc * p.scale;
+        return;
+    }
+    F32s m = F32s(ra);
+    precise float u = 0.0;
     for (uint i = 0u; i < p.dk; i++) {
-        float e = m.v[i] * decay;
+        precise float e = m.v[i] * decay;
         m.v[i] = e;
-        u += e * ks[i];
+        u = fma(e, ks[i], u);
     }
     float delta = (F32s(p.v).v[h * p.dv + j] - u) * b;
-    float acc = 0.0;
+    precise float acc = 0.0;
     for (uint i = 0u; i < p.dk; i++) {
-        float e = m.v[i] + ks[i] * delta;
+        precise float e = fma(ks[i], delta, m.v[i]);
         m.v[i] = e;
-        acc += e * qs[i];
+        acc = fma(e, qs[i], acc);
     }
     F32s(p.o).v[h * p.dv + j] = acc * p.scale;
 }

@@ -14,7 +14,8 @@ mod error;
 pub mod fake;
 mod loaded;
 mod logprobs;
-mod mtp;
+pub mod mtp;
+mod mtp_slots;
 mod policy;
 mod pool;
 mod prefill;
@@ -36,12 +37,13 @@ mod weights;
 mod worker;
 
 pub use cache::{
-    cache_bytes, cache_plan, choose_slots, chunk_rows, fit_cache, fit_slots, row_bytes, slot_sizes,
-    staging_bytes, staging_plan, Stats, SWAP_POISON,
+    cache_bytes, cache_plan, choose_slots, chunk_rows, fit_cache, fit_cache_mtp, fit_slots,
+    row_bytes, slot_sizes, staging_bytes, staging_plan, MtpFit, Stats, SWAP_POISON,
 };
 pub use error::{Error, ErrorClass};
 pub use loaded::{EngineLoader, Loaded};
 pub use logprobs::logprobs;
+pub use mtp_slots::{MTP_SLOTS, MTP_TRUNK_FLOOR};
 pub use policy::{
     allowance, earned, CachePolicy, Pick, PolicyParams, PolicyStep, HALF_LIFE, MARGIN,
     PRIOR_TOKENS, RESHAPE_BYTES, UPLOAD_CAP,
@@ -114,6 +116,9 @@ pub struct Config {
     /// Expert slots per layer (`--cache-slots`); None sizes the cache to the budget. Some(n) is also the ceiling for lent
     /// and grown rows; without it, the cache may grow toward every expert as the budget allows.
     pub cache_slots: Option<usize>,
+    /// The VRAM slots for the MTP block's most-routed experts (`Options::mtp_slots`); None takes `MTP_SLOTS`, Some(0)
+    /// loads none.
+    pub mtp_slots: Option<usize>,
     /// Start one seeded pseudo-random swap per step (`--force-swap-every-token`).
     pub force_swap_seed: Option<u64>,
     /// The host-RAM snapshot pool's size in GiB, at most; the load cuts it to what the machine
@@ -137,6 +142,7 @@ impl Config {
             device_uuid: None,
             ctx: 65_536,
             cache_slots: None,
+            mtp_slots: None,
             force_swap_seed: None,
             snapshot_pool_gib: 8,
             f32_prefill: false,
@@ -237,10 +243,15 @@ pub struct Options {
     /// `Session::verify` refuses (`Error::VerifyBuffers`) rather than write past it.
     pub speculation: bool,
     /// The MTP drafter will run: the load also puts `blk.40`'s non-expert weights in VRAM and its experts in
-    /// host memory (always HOST in the slot table), and counts the session's MTP rows and ring. Some only with
+    /// host memory (HOST in the slot table at load; `mtp_slots` moves the most-routed into VRAM slots of their own),
+    /// and counts the session's MTP rows and ring. Some only with
     /// `speculation` (`Error::SpeculationRefused` otherwise); build it with `MtpOptions::for_session`. None by default:
     /// the load is then the one without the MTP, byte for byte.
     pub mtp: Option<MtpOptions>,
+    /// With `mtp`, the VRAM slots asked for `blk.40`'s most-routed experts (K-64, `mtp_slots.rs`): None takes
+    /// `MTP_SLOTS` (64), at most every expert. They come out of the cache's budget (`fit_cache_mtp`), so the load may
+    /// give fewer, or none, and 0 asks for none. Ignored without `mtp`.
+    pub mtp_slots: Option<usize>,
     /// A counter the load adds 1 to after each weight tensor it uploads and each layer of expert copies
     /// (`Config::load_ticks`). None counts nothing.
     pub load_ticks: Option<Arc<AtomicU64>>,
@@ -348,6 +359,8 @@ pub struct Engine {
     pub(crate) mtp: Option<MtpOptions>,
     /// (asked, used) when the load cut `mtp_ring` to fit the prefill chunk (`mtp::clamp_ring`).
     pub(crate) mtp_ring_clamp: Option<(usize, usize)>,
+    /// K-64's VRAM slots for `blk.40`'s most-routed experts: None without the MTP or when the load gave none.
+    pub(crate) mtp_slots: Option<mtp_slots::MtpSlotsGpu>,
     pub(crate) dev: vk::Device,
 }
 
@@ -426,6 +439,7 @@ impl Engine {
                 cpu_share: 0.0,
                 speculation: cfg.speculation.enabled,
                 mtp: MtpOptions::for_session(&cfg.speculation, cfg.ctx)?,
+                mtp_slots: cfg.mtp_slots,
                 load_ticks: cfg.load_ticks.clone(),
             },
         )
@@ -556,7 +570,22 @@ impl Engine {
             Vec::new()
         };
         let per_chunk = opts.chunk_rows.unwrap_or_else(|| cache::chunk_rows(&sizes));
-        let (slots, _, (mut cache, staging_vram, _)) = fit_cache(
+        // K-64: `blk.40`'s VRAM slots, sized with the cache out of the same budget (`fit_cache_mtp`).
+        let (mtp_ask, mtp_slot) = match opts.mtp {
+            Some(_) => (
+                opts.mtp_slots.unwrap_or(MTP_SLOTS).min(dims.n_expert),
+                host.slot_slice(dims.n_layer, 0).size,
+            ),
+            None => (0, 0),
+        };
+        let alloc_mtp = |m: usize| -> Result<Option<vk::Buffer>, vk::Error> {
+            if m == 0 {
+                return Ok(None);
+            }
+            dev.alloc(m as u64 * mtp_slot, vk::MemKind::Vram, "the MTP slots")
+                .map(Some)
+        };
+        let fit = fit_cache_mtp(
             dev.heap_budget(vk::MemKind::Vram)?,
             n.session,
             &sizes,
@@ -565,7 +594,9 @@ impl Engine {
                 Some(opts.own_slots.map_or(n, |o| o.min(n)))
             }),
             !opts.no_staging,
-            |slots, staged| {
+            (mtp_ask, mtp_slot),
+            |slots, staged, m| {
+                let mtp = alloc_mtp(m)?;
                 let cache = cache::Cache::new(&dev, sizes.clone(), slots, per_chunk)?;
                 let staging = if staged {
                     stage::StagingVram::new(&dev, &sizes, dims.n_expert, slots)?
@@ -579,10 +610,27 @@ impl Engine {
                 } else {
                     cache::reserve(&dev, &session)?
                 };
-                Ok((cache, staging, held))
+                Ok(((cache, staging, held), mtp))
             },
+            &alloc_mtp,
             || dev.heap_budget(vk::MemKind::Vram),
         )?;
+        let MtpFit {
+            slots,
+            held: (mut cache, staging_vram, reserve),
+            mtp_slots: mtp_n,
+            mtp: mtp_mem,
+            ..
+        } = fit;
+        // The session's reservation is freed here: the session allocates it again.
+        drop(reserve);
+        // The slots are optional: if the update list's pinned allocation fails, the load goes on without them (`mem`
+        // drops with the failed call, and `Stats::mtp_slots` reads 0).
+        let mtp_slots = mtp_mem.and_then(|mem| {
+            mtp_slots::MtpSlotsGpu::new(&dev, mem, mtp_slot, mtp_n, dims.n_expert)
+                .map_err(|err| eprintln!("MTP expert slots off: {err}"))
+                .ok()
+        });
         // The prefill table's pinned host buffer is allocated once the fit has settled, not in its rounds.
         let staging = staging_vram.map(|s| s.finish(&dev)).transpose()?;
         // Between staged prefill chunks the staging buffers lend their VRAM to the cache as whole rows,
@@ -662,6 +710,8 @@ impl Engine {
             cache_bytes: cache.bytes(),
             staging_bytes: staging.as_ref().map_or(0, |s| s.bytes),
             lent_slots: live - slots,
+            mtp_slots: mtp_slots.as_ref().map_or(0, |s| s.slots()),
+            mtp_slot_bytes: mtp_slots.as_ref().map_or(0, |s| s.bytes()),
             ..Stats::default()
         };
         // Tests only: a 64 MiB scratch each staging copy fills first, so the copies land late. Allocated after the fit,
@@ -730,6 +780,7 @@ impl Engine {
             speculation: opts.speculation,
             mtp: opts.mtp,
             mtp_ring_clamp,
+            mtp_slots,
             dev,
         };
         // The CPU miss path starts last, after the checks above refused a share the machine can't run.
@@ -775,11 +826,14 @@ impl Engine {
         Ok(self.dev.heap_budget(vk::MemKind::HostCached)?.usage)
     }
 
-    /// The VRAM the MTP takes beyond the load without the MTP: `blk.40`'s non-expert weights and the session's MTP
-    /// rows and ring (`mtp_session_bytes`, which the cache was sized around). 0 without `Options::mtp`.
+    /// The VRAM the MTP takes beyond the load without the MTP: `blk.40`'s non-expert weights, the session's MTP
+    /// rows and ring (`mtp_session_bytes`, which the cache was sized around), and the MTP slots (`Stats::mtp_slots`,
+    /// out of the cache's budget). 0 without `Options::mtp`.
     pub fn mtp_vram_bytes(&self) -> u64 {
         self.mtp.map_or(0, |o| {
-            self.w.mtp_bytes + mtp_session_bytes(&self.dims, o.rows, o.ring)
+            self.w.mtp_bytes
+                + mtp_session_bytes(&self.dims, o.rows, o.ring)
+                + self.mtp_slots.as_ref().map_or(0, |s| s.bytes())
         })
     }
 

@@ -42,6 +42,11 @@ pub trait Verifier {
     fn has_mtp(&self) -> bool {
         false
     }
+    /// The position of the token the next step starts at (`x`), where the verifier knows it: only
+    /// `ARTEMIS_MTP_TOPK`'s log reads it. Default: unknown.
+    fn position(&self) -> Option<usize> {
+        None
+    }
     /// The engine's routed-expert misses so far.
     fn misses(&self) -> u64;
     /// Bytes one miss reads (`expert_bytes`).
@@ -251,6 +256,8 @@ impl SpecState {
         if let Some(bad) = draft.iter().position(|&t| t as usize >= v.n_vocab()) {
             draft.truncate(bad);
         }
+        // `ARTEMIS_MTP_TOPK`'s log: the position row 0 of this step starts at (unset: not asked for).
+        let log_pos = crate::mtp::mtp_topk_path().and_then(|_| v.position());
         // What produced lookup's draft: the controller keeps an accept rate per class of match.
         let class: Option<LookupMatch> = if draft.is_empty() {
             None
@@ -316,6 +323,9 @@ impl SpecState {
         if k == 0 {
             let row = v.decode(x)?;
             let next = pick(&row)?;
+            if let (Some(p), Next::Go(y)) = (log_pos, next) {
+                crate::mtp::log_pick(p, y);
+            }
             kept = 1;
             ended = next == Next::End;
             // Lookup scores itself for free: its first draft token against the token picked. An `End` leaves
@@ -347,6 +357,9 @@ impl SpecState {
                         break;
                     }
                     Ok(Next::Go(y)) => {
+                        if let Some(p) = log_pos {
+                            crate::mtp::log_pick(p + i, y);
+                        }
                         drafter.observe(&[y]);
                         picks.push(y);
                         // Row k has no draft after it to compare with.

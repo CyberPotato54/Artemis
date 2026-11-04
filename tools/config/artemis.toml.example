@@ -6,9 +6,13 @@ model = 'C:\models\Qwen3.6-35B-A3B-UD-Q4_K_M.gguf'
 port = 8080
 # To require an API key, put it on the first line of a text file, remove the # and name the file here.
 # api_key_file = 'C:\artemis\key.txt'
-# By default the text of a control token in client text (a file an agent read, a tool result) is read as that token. To
-# keep it plain text, which is safer for an agent that reads untrusted files, remove the # on the next line.
-# special_tokens_in_content = false
+# By default the text of a control token in client text (a file an agent read, a tool result) stays plain text, so a
+# file cannot forge a turn. To read it as that token, as llama.cpp does, remove the # on the next line.
+# special_tokens_in_content = true
 # On the first start with no tuned file, Artemis measures this PC for a few minutes and keeps what it chose. To skip
 # that measurement, remove the # on the next line.
 # first_run_setup = false
+# The MTP draft block keeps its most-routed experts in VRAM slots (64 by default, 116 MiB in all), taken from the
+# expert cache's share of VRAM. To give that VRAM back to the cache, remove the # on the next line (0 turns the
+# slots off).
+# mtp_expert_slots = 0

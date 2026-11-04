@@ -537,6 +537,11 @@ impl Kernels {
             dk <= 128 && dv <= 128,
             "gdn_step holds at most 128 keys and values per head"
         );
+        // Heads of 128 keys read and write the state 16 bytes at a time.
+        assert!(
+            dk != 128 || state.is_multiple_of(16),
+            "gdn_step over heads of 128 keys needs a 16-byte-aligned state, not {state:#x}"
+        );
         let push = GdnStepPush {
             q,
             k,
@@ -681,18 +686,23 @@ pub fn attn_splits(n_ctx: usize) -> usize {
 /// `the_gqa_attention_writes_attn_decodes_bits` (test 1's block) is what pins them on this driver. Measured on the RX
 /// 9070 XT on the kernels before the K-tile rework (a call on the real model's shapes, best of three; the tiled GQA
 /// kernel is about 1.5x faster at 4,096, so the crossover may now sit lower): 2,048 positions 38.8 µs for
-/// `attn_decode` against 50.4 for the GQA kernel, 3,072 53.2 against 54.7, 4,096 74.2 against 58.4.
+/// `attn_decode` against 50.4 for the GQA kernel, 3,072 53.2 against 54.7, 4,096 74.2 against 58.4. Plan v012 measured
+/// the tiled kernel (`decode_speed`, median of 1,000 with `attn_combine`): 512 positions 27.6 µs for `attn_decode`
+/// against 38.4, 2,048 41.7 against 40.6, so the step keeps this threshold. The verify step does not: see
+/// `attn_tokens_kernel`.
 pub const ATTN_GQA_FROM: usize = 3_072;
 
 /// The most query heads a KV head may serve for `attn_decode_gqa` (its `GMAX`); a model with more runs `attn_decode`.
 pub const ATTN_GQA_GROUP: usize = 8;
 
 /// `attn_decode_gqa`'s and `attn_decode_gqa_tokens`'s shared memory: the group's queries, then its weights, 8 heads ×
-/// 256 floats (each shader's `qw`, 8,192 bytes), and one K tile of 32 positions × 128 f16 values (`kt`, 8,192). Exactly
-/// Vulkan's 16,384, so not in `BIG_SHARED_KERNELS`; change it with both shaders' `qw` (`GMAX`) and `kt`.
+/// 256 floats (each shader's `qw`, 8,192 bytes), and one K tile of 32 positions × 128 f16 values (`attn_decode_gqa`) or
+/// 64 positions × 64 (`attn_decode_gqa_tokens`) (`kt`, 8,192). Exactly Vulkan's 16,384, so not in
+/// `BIG_SHARED_KERNELS`; change it with both shaders' `qw` (`GMAX`) and `kt`.
 pub const ATTN_GQA_SHARED_BYTES: u32 = 16_384;
 
-/// The shapes `attn_decode_gqa` serves: at most `ATTN_GQA_GROUP` query heads to a KV head, heads a multiple of 32 values.
+/// The shapes `attn_decode_gqa` serves: at most `ATTN_GQA_GROUP` query heads to a KV head, heads a multiple of 32
+/// values.
 fn gqa_takes(n_head: usize, n_kv: usize, hd: usize) -> bool {
     n_head / n_kv <= ATTN_GQA_GROUP && hd.is_multiple_of(32)
 }
@@ -706,6 +716,25 @@ pub fn attn_decode_kernel(n_ctx: usize, n_head: usize, n_kv: usize, hd: usize) -
         Kernel::AttnDecodeGqa
     } else {
         Kernel::AttnDecode
+    }
+}
+
+/// Which kernel computes the verify step's attention partials (`attn_decode_tokens`): `attn_decode_gqa_tokens` at any
+/// length for a shape `attn_decode_gqa` serves, `attn_decode_tokens` otherwise. Each query's partials still equal the
+/// ones decode writes at its length with `attn_decode_kernel`'s choice, because `attn_decode_gqa` writes
+/// `attn_decode`'s bits (`the_gqa_attention_writes_attn_decodes_bits`). `attn_decode_tokens` loops over the queries
+/// in each workgroup and reads every cached row once per query head and query; the GQA form takes a workgroup per
+/// query and reads a row once per query. On the real model's shapes (`decode_speed`, median of 1,000 with
+/// `attn_combine_tokens`, plan v012): 512 positions at t = 2 47.7 against 32.2 µs and at t = 5 97.8 against 32.2;
+/// 2,048 positions at t = 2 90.9 against 35.3 and at t = 5 225.5 against 41.2.
+///
+/// The verify step runs the GQA form at every length, so its rows match decode's only because the compiler treats
+/// the two kernels alike; on another driver a difference shows at every length, not at one crossing.
+pub fn attn_tokens_kernel(n_head: usize, n_kv: usize, hd: usize) -> Kernel {
+    if gqa_takes(n_head, n_kv, hd) {
+        Kernel::AttnDecodeGqaTokens
+    } else {
+        Kernel::AttnDecodeTokens
     }
 }
 
@@ -1427,6 +1456,17 @@ pub struct SwigluPush {
 }
 push_constants!(SwigluPush: u64, u64, u64, u32, u32);
 
+/// Subgroups of 32 lanes in a workgroup of the routed experts' decode kernels (their shaders' EXPERT_WAVES).
+pub const EXPERT_WAVES: usize = 8;
+
+/// Rows a workgroup of the routed experts' decode kernels (`experts_gate_up`, `experts_down`) covers, for rows of `k`
+/// inputs: EXPERT_WAVES subgroups of 32 lanes, each lane on one row; a row of at most 16 units (k <= 512) takes 16
+/// lanes, so a subgroup carries two rows, and a longer row takes 32. The shaders make the same choice.
+pub fn expert_rows(k: usize) -> usize {
+    let per_subgroup = if k / 32 <= 16 { 2 } else { 1 };
+    EXPERT_WAVES * per_subgroup
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ExpertsGateUpPush {
@@ -1445,9 +1485,11 @@ pub struct ExpertsGateUpPush {
     pub layer: u32,
     pub seq: u32,
     pub serve: u32,
-    pub pad: u32,
+    /// +0.0, the tree's added zero on rows of at most 16 units (`tree32.glsl`): from the host, so the driver can't
+    /// fold the add away.
+    pub zero: f32,
 }
-push_constants!(ExpertsGateUpPush: u64, u64, u64, u64, u64, u64, u32, u32, u32, u32, u32, u32, u32, u32, u32, u32);
+push_constants!(ExpertsGateUpPush: u64, u64, u64, u64, u64, u64, u32, u32, u32, u32, u32, u32, u32, u32, u32, f32);
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -1466,8 +1508,11 @@ pub struct ExpertsDownPush {
     pub layer: u32,
     pub seq: u32,
     pub serve: u32,
+    /// `ExpertsGateUpPush::zero`'s.
+    pub zero: f32,
+    pub pad: u32,
 }
-push_constants!(ExpertsDownPush: u64, u64, u64, u64, u64, u64, u32, u32, u32, u32, u32, u32, u32, u32);
+push_constants!(ExpertsDownPush: u64, u64, u64, u64, u64, u64, u32, u32, u32, u32, u32, u32, u32, u32, f32, u32);
 
 /// `stamp`: tim[idx] = clockRealtimeEXT(). The calibration kernel: two stamps 300 ms apart give the
 /// device clock's ticks per µs, so the wait's bound is passed in ticks, never hard-coded.
@@ -1501,7 +1546,7 @@ push_constants!(MissPublishPush: u64, u64, u64, u64, u32, u32, u32, u32, u32, u3
 const _: () = {
     use std::mem::size_of;
     assert!(size_of::<ExpertsGateUpPush>() == 6 * 8 + 10 * 4);
-    assert!(size_of::<ExpertsDownPush>() == 6 * 8 + 8 * 4);
+    assert!(size_of::<ExpertsDownPush>() == 6 * 8 + 10 * 4);
     assert!(size_of::<StampPush>() == 8 + 2 * 4);
     assert!(size_of::<MissPublishPush>() == 4 * 8 + 6 * 4);
     assert!(size_of::<MissWaitPush>() == 3 * 8 + 6 * 4);
@@ -1642,12 +1687,12 @@ impl Kernels {
             layer: layer as u32,
             seq,
             serve,
-            pad: 0,
+            zero: 0.0,
         };
         r.dispatch(
             self.pipe(Kernel::ExpertsGateUp),
             &push,
-            [groups(lay.n_ff, 8), count(k), 1],
+            [groups(lay.n_ff, expert_rows(lay.n_embd)), count(k), 1],
         );
     }
 
@@ -1693,11 +1738,13 @@ impl Kernels {
             layer: layer as u32,
             seq,
             serve,
+            zero: 0.0,
+            pad: 0,
         };
         r.dispatch(
             self.pipe(Kernel::ExpertsDown),
             &push,
-            [groups(lay.n_embd, 8), count(k), 1],
+            [groups(lay.n_embd, expert_rows(lay.n_ff)), count(k), 1],
         );
     }
 

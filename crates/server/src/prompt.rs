@@ -87,6 +87,8 @@ pub struct PromptOptions {
     pub flavour: Flavour,
 }
 
+/// The llama.cpp-comparison mode (special tokens parsed everywhere), which tests use. It differs from the server's
+/// default: production builds its options from `Config`, where `special_tokens_in_content` defaults to `false`.
 impl Default for PromptOptions {
     fn default() -> PromptOptions {
         PromptOptions {
@@ -96,7 +98,8 @@ impl Default for PromptOptions {
     }
 }
 
-/// `build_prompt_with` and the default options: llama.cpp's tokenization, OpenAI's wording.
+/// `build_prompt_with` and the default options: llama.cpp's tokenization, OpenAI's wording. This is the comparison
+/// mode, which differs from the server's default; the server calls `build_prompt_with` with options from `Config`.
 pub fn build_prompt(
     c: &Conversation,
     t: &Template,

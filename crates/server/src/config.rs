@@ -15,6 +15,9 @@ const CTX_RANGE: std::ops::RangeInclusive<u32> = 512..=262_144;
 /// The most expert-cache slots a layer can use: a layer has 256 experts.
 const MAX_CACHE_SLOTS: u32 = 256;
 
+/// The default for `mtp_expert_slots`: the MTP block's VRAM expert slots (the engine's `MTP_SLOTS`, which a test pins).
+const DEFAULT_MTP_EXPERT_SLOTS: u32 = 64;
+
 /// Whether `name` is a `health_service` name: 1 to 32 characters, each a lower-case letter, a digit or a hyphen, the
 /// first not a hyphen.
 fn is_service_name(name: &str) -> bool {
@@ -248,6 +251,9 @@ pub struct Config {
     pub log_keep_days: u32,
     pub device_uuid: Option<String>,
     pub cache_slots: Option<u32>,
+    /// VRAM slots for the MTP block's most-routed experts, 0 to 256; 0 turns them off. They come out of the expert
+    /// cache's budget.
+    pub mtp_expert_slots: u32,
     pub f32_prefill: bool,
     /// Use a GGUF whose chat template differs from the pinned one (the start is refused otherwise).
     pub allow_custom_template: bool,
@@ -318,9 +324,10 @@ impl Default for Config {
             log_keep_days: 14,
             device_uuid: None,
             cache_slots: None,
+            mtp_expert_slots: DEFAULT_MTP_EXPERT_SLOTS,
             f32_prefill: false,
             allow_custom_template: false,
-            special_tokens_in_content: true,
+            special_tokens_in_content: false,
             anthropic_thinking: true,
             first_run_setup: true,
             tuned: TunedState::Off,
@@ -402,6 +409,9 @@ pub struct ServeArgs {
     /// Expert-cache slots per layer (default: auto).
     #[arg(long)]
     pub cache_slots: Option<u32>,
+    /// VRAM slots for the MTP block's experts, 0 to 256 (default 64; 0 turns them off).
+    #[arg(long)]
+    pub mtp_expert_slots: Option<u32>,
     /// Prefill in f32 (default false).
     #[arg(long, num_args = 0..=1, default_missing_value = "true")]
     pub f32_prefill: Option<bool>,
@@ -753,6 +763,13 @@ impl Config {
                 source(args.cache_slots.is_some(), "cache_slots")
             )));
         }
+        if cfg.mtp_expert_slots > MAX_CACHE_SLOTS {
+            return Err(one_line(&format!(
+                "{} {} is outside 0 to {MAX_CACHE_SLOTS}",
+                source(args.mtp_expert_slots.is_some(), "mtp_expert_slots"),
+                cfg.mtp_expert_slots
+            )));
+        }
         if !is_service_name(&cfg.health_service) {
             return Err(one_line(&format!(
                 "{} must be 1 to 32 lower-case letters, digits or hyphens, not starting with a hyphen",
@@ -925,6 +942,7 @@ impl Config {
         set(&mut self.log_keep_days, &a.log_keep_days);
         set_opt(&mut self.device_uuid, &a.device_uuid);
         set_opt(&mut self.cache_slots, &a.cache_slots);
+        set(&mut self.mtp_expert_slots, &a.mtp_expert_slots);
         set(&mut self.f32_prefill, &a.f32_prefill);
         set(&mut self.allow_custom_template, &a.allow_custom_template);
         set(
@@ -1150,7 +1168,7 @@ mod tests {
             (None, None, None)
         );
         assert!(!c.f32_prefill && !c.allow_custom_template);
-        assert!(c.special_tokens_in_content);
+        assert!(!c.special_tokens_in_content);
         assert!(c.anthropic_thinking && c.defaults().anthropic_thinking);
         assert_eq!(c.speculation, SpeculationConfig::default());
         assert!(c.speculation.enabled);
@@ -1775,6 +1793,78 @@ allowed_origins = [\"http://a\"]
     }
 
     #[test]
+    fn mtp_expert_slots_default_to_64_and_are_range_checked() {
+        let s = Scratch::new("mtpslots");
+        let c = load_toml(
+            &s,
+            "d.toml",
+            "model = \"m\"
+",
+        )
+        .unwrap();
+        assert_eq!(c.mtp_expert_slots, 64);
+        for (i, n) in [0, 1, 64, 256].into_iter().enumerate() {
+            let toml = format!(
+                "model = \"m\"
+mtp_expert_slots = {n}
+"
+            );
+            let c = load_toml(&s, &format!("m{i}.toml"), &toml).unwrap();
+            assert_eq!(c.mtp_expert_slots, n);
+        }
+        let err = load_toml(
+            &s,
+            "big.toml",
+            "model = \"m\"
+mtp_expert_slots = 257
+",
+        )
+        .unwrap_err();
+        assert!(
+            err.contains("mtp_expert_slots 257 is outside 0 to 256"),
+            "{err}"
+        );
+        // The flag wins over the file, and is blamed by its own name.
+        let args = ServeArgs {
+            config: Some(s.file(
+                "f.toml",
+                b"model = \"m\"
+mtp_expert_slots = 8
+",
+            )),
+            mtp_expert_slots: Some(0),
+            ..ServeArgs::default()
+        };
+        assert_eq!(
+            Config::load(&args, &no_env, false)
+                .unwrap()
+                .mtp_expert_slots,
+            0
+        );
+        let args = ServeArgs {
+            config: Some(s.file(
+                "g2.toml",
+                b"model = \"m\"
+",
+            )),
+            mtp_expert_slots: Some(300),
+            ..ServeArgs::default()
+        };
+        assert_eq!(
+            Config::load(&args, &no_env, false).unwrap_err(),
+            "--mtp-expert-slots 300 is outside 0 to 256"
+        );
+        let keys = crate::tuned::user_keys(
+            None,
+            &ServeArgs {
+                mtp_expert_slots: Some(1),
+                ..ServeArgs::default()
+            },
+        );
+        assert!(keys.contains("mtp_expert_slots"));
+    }
+
+    #[test]
     fn relative_paths_resolve_against_the_config_file() {
         let s = Scratch::new("relative");
         let file = s.file(
@@ -2194,6 +2284,53 @@ mtp_ring = 16384",
         let err = load_toml(&s, "t.toml", "model = \"m\"\n\nport = \"x\"\n").unwrap_err();
         assert!(err.contains("t.toml:3:"), "{err}");
         assert!(!err.contains('\n'), "{err}");
+    }
+
+    #[test]
+    fn special_tokens_in_content_defaults_to_false() {
+        assert!(!Config::default().special_tokens_in_content);
+        let s = Scratch::new("stic-default");
+        let args = ServeArgs {
+            config: Some(s.file("a.toml", b"model = \"m\"\n")),
+            ..ServeArgs::default()
+        };
+        let c = Config::load(&args, &no_env, false).unwrap();
+        assert!(!c.special_tokens_in_content);
+    }
+
+    #[test]
+    fn an_explicit_true_in_the_file_or_the_bare_flag_still_gives_true() {
+        use clap::Parser;
+        let s = Scratch::new("stic-true");
+        let args = ServeArgs {
+            config: Some(s.file(
+                "a.toml",
+                b"model = \"m\"\nspecial_tokens_in_content = true\n",
+            )),
+            ..ServeArgs::default()
+        };
+        assert!(
+            Config::load(&args, &no_env, false)
+                .unwrap()
+                .special_tokens_in_content
+        );
+        #[derive(Parser)]
+        struct W {
+            #[command(flatten)]
+            serve: ServeArgs,
+        }
+        let w = W::try_parse_from(["artemis", "--special-tokens-in-content"]).unwrap();
+        assert_eq!(w.serve.special_tokens_in_content, Some(true));
+        let args = ServeArgs {
+            config: Some(s.file("b.toml", b"model = \"m\"\n")),
+            special_tokens_in_content: w.serve.special_tokens_in_content,
+            ..ServeArgs::default()
+        };
+        assert!(
+            Config::load(&args, &no_env, false)
+                .unwrap()
+                .special_tokens_in_content
+        );
     }
 
     #[test]

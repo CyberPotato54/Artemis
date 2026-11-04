@@ -60,10 +60,13 @@ pub fn run(cmd: ServeCmd) -> anyhow::Result<i32> {
     // Before the log: opening the `Logger` prunes old log files, and a refused start prunes nothing.
     let key = cfg.read_key().map_err(anyhow::Error::msg)?;
     let addr = cfg.bind(key.as_ref()).map_err(anyhow::Error::msg)?;
-    let key_warning = match &key {
-        Some(key) => key_strength(key, addr).map_err(anyhow::Error::msg)?,
-        None => None,
-    };
+    let mut key_warnings = Vec::new();
+    if let Some(key) = &key {
+        key_warnings.extend(key_strength(key, addr).map_err(anyhow::Error::msg)?);
+        if let Some(path) = &cfg.api_key_file {
+            key_warnings.extend(server::keyfile::exposure(path));
+        }
+    }
 
     let log_dir = cfg.log_dir(&env, cfg!(windows));
     let logger = Logger::new(log_dir.clone(), cfg.log_keep_days)
@@ -105,7 +108,7 @@ pub fn run(cmd: ServeCmd) -> anyhow::Result<i32> {
     for line in tuned_lines(&cfg, &env, cfg!(windows)) {
         logger.lifecycle(&line);
     }
-    if let Some(message) = key_warning {
+    for message in key_warnings {
         warn(&logger, &message);
     }
     if let Some(message) = pin_warning {

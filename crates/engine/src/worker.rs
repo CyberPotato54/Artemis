@@ -56,6 +56,10 @@ pub struct LoadInfo {
     pub device_uuid: [u8; 16],
     pub driver: String,
     pub slots_per_layer: usize,
+    /// K-64's MTP slots the load gave `blk.40` and their bytes (`Stats::mtp_slots`, `mtp_slot_bytes`); 0 without the
+    /// MTP or without room.
+    pub mtp_slots: usize,
+    pub mtp_slot_bytes: u64,
     pub vram_weights: u64,
     pub vram_session: u64,
     /// This process's VRAM use after the load, the device-local heap's `usage` (`VK_EXT_memory_budget`); `None` when

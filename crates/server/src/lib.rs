@@ -15,6 +15,7 @@ pub mod fake;
 pub mod handlers;
 pub mod ids;
 pub mod jsonlimit;
+pub mod keyfile;
 mod listen;
 pub mod logs;
 pub mod openai;

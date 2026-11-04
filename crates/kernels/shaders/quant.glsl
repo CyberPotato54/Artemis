@@ -213,13 +213,85 @@ float unit_dot(uint t, uint64_t row, uint u, uint64_t xa) {
     return r;
 }
 
-// The most tokens a token kernel carries: kernels::tokens::MAX_TOKENS (a test pins the two equal).
-const uint MAX_TOKENS = 16u;
+// unit_dot's Q4_K and Q5_K path split at its loads, for the routed experts' decode kernels: kq_load fetches unit u's
+// words of the row at `row` (t is T_Q4_K or T_Q5_K), and kq_dot runs unit_dot's float operations on them in unit_dot's
+// order, so kq_dot(t, kq_load(t, row, u), u, xa) == unit_dot(t, row, u, xa) bit for bit. Only the integer unpacking
+// differs: four quants a word (a byte each) instead of one at a time, which takes about half the instructions. Keep the
+// two paths' float arithmetic the same.
+struct KQ {
+    uvec4 head;
+    uvec4 qa, qb;
+    uvec4 ha, hb;
+};
+
+KQ kq_load(uint t, uint64_t row, uint u) {
+    uint64_t b = row + uint64_t((t == T_Q4_K ? 144u : 176u) * (u / 8u));
+    uint c = (u % 8u) / 2u;
+    KQ w;
+    w.head = QuantU4(b).v[0];
+    QuantU4 qw = QuantU4(b + (t == T_Q4_K ? 16ul : 48ul) + uint64_t(32u * c));
+    w.qa = qw.v[0];
+    w.qb = qw.v[1];
+    w.ha = uvec4(0u);
+    w.hb = uvec4(0u);
+    if (t == T_Q5_K) {
+        QuantU4 hw = QuantU4(b + 16ul);
+        w.ha = hw.v[0];
+        w.hb = hw.v[1];
+    }
+    return w;
+}
+
+float kq_dot(uint t, KQ w, uint u, uint64_t xa) {
+    QuantV4 x = QuantV4(xa + uint64_t(128u * u));
+    uint j = u % 8u, sh = 4u * (j % 2u);
+    uvec3 sc = w.head.yzw;
+    uvec2 sm;
+    if (j < 4u) {
+        sm = uvec2(byte12(sc, j) & 63u, byte12(sc, j + 4u) & 63u);
+    } else {
+        sm = uvec2((byte12(sc, j + 4u) & 0xFu) | ((byte12(sc, j - 4u) >> 6) << 4),
+                   (byte12(sc, j + 4u) >> 4) | ((byte12(sc, j) >> 6) << 4));
+    }
+    // Four values' 5-bit quants at once, one a byte: the nibbles at sh, and bit j of the high bytes at bit 4.
+    // float(q) is exact, so how q is taken apart does not change a bit.
+    precise float sq = 0.0, sx = 0.0;
+    [[unroll]] for (uint l4 = 0u; l4 < 8u; l4++) {
+        vec4 xv4 = x.v[l4];
+        uint qw = ((l4 < 4u ? w.qa[l4] : w.qb[l4 - 4u]) >> sh) & 0x0F0F0F0Fu;
+        if (t == T_Q5_K) {
+            qw |= (((l4 < 4u ? w.ha[l4] : w.hb[l4 - 4u]) >> j) & 0x01010101u) << 4;
+        }
+        [[unroll]] for (uint i = 0u; i < 4u; i++) {
+            float xv = xv4[i];
+            sq += float((qw >> (8u * i)) & 0xFFu) * xv;
+            sx += xv;
+        }
+    }
+    vec2 dm = unpackHalf2x16(w.head.x);
+    precise float r = (dm.x * float(sm.x)) * sq - (dm.y * float(sm.y)) * sx;
+    return r;
+}
+
+// One lane's share of a row in matvec's layout: unit_dot summed over units u0, u0 + 32, ... below `units`, from 0.0 and
+// in that order, with the K-quants' units through kq_load and kq_dot. Pass t constant where the type is known, so the
+// other types' code drops out.
+float lane_sum(uint t, uint64_t row, uint u0, uint units, uint64_t xa) {
+    float a = 0.0;
+    for (uint u = u0; u < units; u += 32u) {
+        if (t == T_Q4_K || t == T_Q5_K) {
+            a += kq_dot(t, kq_load(t, row, u), u, xa);
+        } else {
+            a += unit_dot(t, row, u, xa);
+        }
+    }
+    return a;
+}
 
 // Decodes unit u of the row at `row` into wv (exact floats: integers, or bf16/f32 values) and the block's scales c0..c2.
 // Type-specific scalars: Q8_0 c0 = d; Q4_K/Q5_K c0 = d·scale, c1 = dmin·min; Q6_K c0 = d, c1 and c2 = the two scales.
-// unit_dot_n and unit_dot_n_at both decode through this and dot through unit_dot_loaded, so the decode and the
-// per-token sums exist once.
+// The token kernels (matvec_tokens and the experts') decode through this and dot through unit_dot_loaded, so the
+// decode and the per-token sums exist once.
 void unit_load(uint t, uint64_t row, uint u, out float wv[32], out float c0, out float c1, out float c2) {
     c0 = 0.0;
     c1 = 0.0;
@@ -358,40 +430,5 @@ float unit_dot_loaded(uint t, float wv[32], float c0, float c1, float c2, uint64
         }
         precise float r = c0 * (c1 * sa + c2 * sb);
         return r;
-    }
-}
-
-// unit_dot for n inputs (the token kernels): decodes unit u of the row at `row` once, then adds its dot with
-// token i's input (at x + 4·i·x_stride bytes, x_stride in values, 16-byte aligned like unit_dot's xa) to acc[i], for
-// i < n <= MAX_TOKENS. Each product and sum is unit_dot's, in unit_dot's order and `precise`, so
-// acc[i] += unit_dot(t, row, u, x + 4·i·x_stride) gives the same bits. The weights are decoded to exact floats first
-// (integers, or bf16/f32 values) and the block's scales kept apart: that is all unit_dot does before multiplying.
-void unit_dot_n(uint t, uint64_t row, uint u, uint64_t xa, uint x_stride, uint n, inout precise float acc[MAX_TOKENS]) {
-    float wv[32];
-    float c0, c1, c2;
-    unit_load(t, row, u, wv, c0, c1, c2);
-    // Unrolled to MAX_TOKENS and cut at n, so every acc[i] is a constant index and acc can live in registers.
-    [[unroll]] for (uint i = 0u; i < MAX_TOKENS; i++) {
-        if (i >= n) {
-            break;
-        }
-        acc[i] += unit_dot_loaded(t, wv, c0, c1, c2, xa + uint64_t(4u * i * x_stride) + uint64_t(128u * u));
-    }
-}
-
-// unit_dot_n for inputs at per-token offsets (the experts' token kernels): for each set bit i of `mask`
-// (ascending, at most MAX_TOKENS), token i's input is at xa + 4·xoff[i] bytes (xoff in values, 16-byte aligned like
-// unit_dot's xa), and acc[i] += unit_dot(t, row, u, xa + 4·xoff[i]) with the unit decoded once. experts_down_tokens
-// needs it because token i's input is activation (i·k + j_i) of its routed index j_i, which no base plus i·stride
-// gives; the gate/up kernel passes xoff[i] = i·n_embd and skips the tokens that did not choose the expert. The decode
-// and the per-token sums are unit_dot_n's: both go through unit_load and unit_dot_loaded.
-void unit_dot_n_at(uint t, uint64_t row, uint u, uint64_t xa, uint xoff[MAX_TOKENS], uint mask,
-                   inout precise float acc[MAX_TOKENS]) {
-    float wv[32];
-    float c0, c1, c2;
-    unit_load(t, row, u, wv, c0, c1, c2);
-    for (uint m = mask; m != 0u; m &= m - 1u) {
-        uint i = uint(findLSB(m));
-        acc[i] += unit_dot_loaded(t, wv, c0, c1, c2, xa + uint64_t(4u * xoff[i]) + uint64_t(128u * u));
     }
 }

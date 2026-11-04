@@ -1,7 +1,8 @@
 //! Getting the model onto the GPU: the non-expert weights uploaded to VRAM; the embedding and
 //! every expert copied into host memory (host-cached), experts packed as slots; and the slot table, which points each expert
 //! at its cache slot (VRAM) or its host copy (HOST). With `mtp`, `blk.40`'s non-expert weights go to VRAM too and
-//! its experts to host memory, always HOST in the table.
+//! its experts to host memory, HOST in the table at load: only the MTP slots (`mtp_slots.rs`) point some of them at
+//! VRAM later, through their own updates, never the trunk's cache.
 use crate::{
     decode::Scratch,
     session::{session_bytes_mtp, MtpOptions},
@@ -313,7 +314,8 @@ pub fn check_fits(need: &Need, vram_free: u64, host_free: u64) -> Result<(), Err
     Ok(())
 }
 
-/// The MTP block's experts (layer n_layer) are never in a cache slot. Panics on a VRAM entry for them.
+/// The MTP block's experts (layer n_layer) are never in the trunk's cache. Panics on a VRAM entry for them: only the MTP
+/// slots (`mtp_slots.rs`) point them at VRAM, with their own updates.
 pub(crate) fn assert_not_cached(d: &Dims, layer: usize, loc: u32) {
     assert!(
         layer < d.n_layer || loc != WHERE_VRAM,
@@ -324,7 +326,8 @@ pub(crate) fn assert_not_cached(d: &Dims, layer: usize, loc: u32) {
 /// The slot table: (n_layer + 1) × n_expert entries. Layer l < n_layer's entry for expert e is
 /// `entry(l, e)`: (address, where), a cache slot in VRAM or the expert's host copy (HOST). The MTP block's entries
 /// (layer n_layer) are CPU with no address, so the expert kernels refuse them; with `mtp` they are HOST at the
-/// address `entry(n_layer, e)` gives, the expert's host copy, and never a cache slot: a VRAM entry there panics.
+/// address `entry(n_layer, e)` gives, the expert's host copy, and never a cache slot: a VRAM entry there panics. (The
+/// MTP slots start empty; their draft passes point the experts they take at VRAM later, `mtp_slots.rs`.)
 pub fn slot_table(d: &Dims, entry: impl Fn(usize, usize) -> (u64, u32), mtp: bool) -> Vec<u8> {
     let mut t = Vec::with_capacity((d.n_layer + 1) * d.n_expert * ENTRY_BYTES);
     for l in 0..=d.n_layer {

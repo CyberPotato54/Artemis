@@ -86,6 +86,8 @@ const LOW: u32 = 1024;
 const MEDIUM: u32 = 4096;
 /// The most stop strings a request may carry.
 const MAX_STOP: usize = 16;
+/// The longest stop string, in UTF-8 bytes (the matcher holds back that much text).
+const MAX_STOP_BYTES: usize = 1024;
 /// The most alternatives `top_logprobs` may ask for.
 const MAX_TOP_LOGPROBS: i128 = 20;
 
@@ -338,12 +340,16 @@ fn unknown(m: &Body, ig: &mut Ignored) {
     }
 }
 
-/// The stop strings: at most 16 (400 past that); an empty one is ignored with a log line. `one` also allows a lone
-/// string (OpenAI's `stop`).
+/// The stop strings: at most 16, each at most 1,024 bytes (400 past either); an empty one is ignored with a log line.
+/// `one` also allows a lone string (OpenAI's `stop`).
 fn stop_list(m: &mut Body, key: &str, one: bool) -> Result<Vec<String>, ApiError> {
+    let mut scalar = false;
     let items = match take_field::<Value>(m, key)? {
         None => return Ok(Vec::new()),
-        Some(Value::String(s)) if one => vec![Value::String(s)],
+        Some(Value::String(s)) if one => {
+            scalar = true;
+            vec![Value::String(s)]
+        }
         Some(Value::Array(a)) => a,
         Some(_) => {
             let what = if one {
@@ -361,6 +367,15 @@ fn stop_list(m: &mut Body, key: &str, one: bool) -> Result<Vec<String>, ApiError
     for (i, v) in items.into_iter().enumerate() {
         match v {
             Value::String(s) if s.is_empty() => tracing::info!("{key}[{i}] is empty; ignored"),
+            Value::String(s) if s.len() > MAX_STOP_BYTES => {
+                // A lone string has no index to name.
+                let at = if scalar {
+                    key.to_string()
+                } else {
+                    format!("{key}[{i}]")
+                };
+                return Err(invalid(&at, "holds at most 1,024 bytes"));
+            }
             Value::String(s) => out.push(s),
             _ => {
                 let at = format!("{key}[{i}]");
@@ -1282,6 +1297,67 @@ mod tests {
         assert!(!f.include_usage);
         let e = an(json!({"stop_sequences": "a"})).unwrap_err();
         assert_eq!(e.param.as_deref(), Some("stop_sequences"));
+    }
+
+    #[test]
+    fn a_stop_string_of_1024_bytes_is_accepted() {
+        let s = "é".repeat(512);
+        assert_eq!(s.len(), 1024);
+        assert_eq!(
+            oa(json!({"stop": s.clone()})).unwrap().stop,
+            vec![s.clone()]
+        );
+        assert_eq!(
+            oa(json!({"stop": [s.clone()]})).unwrap().stop,
+            vec![s.clone()]
+        );
+        assert_eq!(
+            an(json!({"stop_sequences": [s.clone()]})).unwrap().stop,
+            vec![s]
+        );
+    }
+
+    #[test]
+    fn a_stop_string_of_1025_bytes_is_refused() {
+        let s = "é".repeat(512) + "x";
+        for (e, key) in [
+            (oa(json!({"stop": s.clone()})).unwrap_err(), "stop"),
+            (
+                oa(json!({"stop": ["a", s.clone()]})).unwrap_err(),
+                "stop[1]",
+            ),
+            (
+                an(json!({"stop_sequences": [s.clone()]})).unwrap_err(),
+                "stop_sequences[0]",
+            ),
+        ] {
+            assert_eq!(e.param.as_deref(), Some(key));
+            assert!(e.message.contains("1,024 bytes"), "{}", e.message);
+        }
+    }
+
+    #[test]
+    fn a_three_byte_character_at_the_stop_cap_is_counted_in_bytes() {
+        // 1,021 bytes of ASCII and a 3-byte character end exactly at 1,024; 1,022 and the character end at 1,025.
+        let fits = "x".repeat(1021) + "€";
+        assert_eq!(fits.len(), 1024);
+        assert_eq!(
+            oa(json!({"stop": [fits.clone()]})).unwrap().stop,
+            vec![fits]
+        );
+        // 341 of them are 1,023 bytes; one more byte is the cap, one more past it.
+        let full = "€".repeat(341) + "x";
+        assert_eq!(full.len(), 1024);
+        assert_eq!(
+            oa(json!({"stop": [full.clone()]})).unwrap().stop,
+            vec![full]
+        );
+        for over in ["x".repeat(1022) + "€", "€".repeat(342)] {
+            assert!(over.len() >= 1025);
+            let e = oa(json!({"stop": [over]})).unwrap_err();
+            assert_eq!(e.param.as_deref(), Some("stop[0]"));
+            assert!(e.message.contains("1,024 bytes"), "{}", e.message);
+        }
     }
 
     #[test]

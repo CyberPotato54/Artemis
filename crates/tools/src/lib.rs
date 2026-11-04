@@ -7,6 +7,7 @@ pub mod kl;
 pub mod lookup_sim;
 pub mod mtp_check;
 pub mod profile;
+pub mod route_predict;
 pub mod serve;
 pub mod setup;
 pub mod snaptimes;

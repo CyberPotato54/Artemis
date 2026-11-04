@@ -9,7 +9,9 @@ use kernels::{
 };
 use qwen36::{quant::WType, testing::Rng};
 
-/// Decode's shapes: DeltaNet's projections, the expert shapes and Q6_K's head.
+/// Decode's shapes: DeltaNet's projections, the expert shapes and Q6_K's head; and 37 rows of 2,304 values, whose
+/// last workgroup holds 5 rows and whose 72 units leave lanes 8 to 31 of each row one unit short (a row's last
+/// partial block of 32 units).
 fn cases(ty: WType) -> Vec<(usize, usize)> {
     let mut v = vec![
         (8, 2048),
@@ -17,6 +19,7 @@ fn cases(ty: WType) -> Vec<(usize, usize)> {
         (4096, 2048),
         (8192, 2048),
         (2048, 4096),
+        (37, 2304),
     ];
     if ty == WType::Q6K {
         v.push((16384, 2048));
@@ -24,7 +27,9 @@ fn cases(ty: WType) -> Vec<(usize, usize)> {
     v
 }
 
-const TOKENS: [usize; 4] = [1, 2, 5, 16];
+/// Every count with a specialized pipeline (`tokens::SPECIALIZED_TOKENS`, 2 to 5) and the general pipeline at 1, 7 and
+/// 16.
+const TOKENS: [usize; 7] = [1, 2, 3, 4, 5, 7, 16];
 
 #[test]
 #[ignore = "needs the GPU"]

@@ -1,20 +1,25 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 #include "common.glsl"
 #include "quant.glsl"
 #include "slots.glsl"
 #include "mbox.glsl"
-#define RED_ROWS 8u
-#define RED_N 32u
-#include "reduce.glsl"
+#include "tree32.glsl"
 
-// The routed experts' down projections: workgroup (x, j) computes rows 8x .. 8x + 8 of y[j] = down_j · act[j], with
-// down_j read through the slot table again, in matvec's layout.
+// The routed experts' down projections: y[j] = down_j · act[j], with down_j read through the slot table again, in
+// matvec's layout: lane l of a row adds units l, l + 32, ... in order (lane_sum), then red_sum's tree over 32 lanes,
+// done by subgroup shuffles (tree32.glsl) on a pipeline pinned to subgroups of 32.
+//
+// Layout (kernels::dispatch::expert_rows): EXPERT_WAVES subgroups of 32 lanes, each lane on one row. A row of at
+// most 16 units (n_ff <= 512) takes 16 lanes, so a subgroup carries two rows; a longer row takes all 32.
 //
 // serve is experts_gate_up's: 0 refuses a CPU entry; 1 skips it (+0); 2 is the fallback pair, which
 // computes a CPU entry from its host address only when this token's wait did not succeed (status[0] != 0 at the
 // mailbox, or the layer's done flag is not seq) and writes nothing otherwise.
-layout(local_size_x = 32, local_size_y = 8) in;
+const uint EXPERT_WAVES = 8u;
+layout(local_size_x = 256) in;
 layout(push_constant) uniform Push {
     uint64_t table;
     uint64_t ids;
@@ -30,11 +35,17 @@ layout(push_constant) uniform Push {
     uint layer;
     uint seq;
     uint serve;
+    float zero; // +0.0, tree32's zero
+    uint pad;
 } p;
 
 void main() {
-    uint lane = gl_LocalInvocationID.x, r = gl_LocalInvocationID.y;
-    uint row = gl_WorkGroupID.x * 8u + r;
+    uint lane = gl_SubgroupInvocationID, wave = gl_SubgroupID;
+    uint units = p.n_ff / 32u;
+    uint lpr = units <= 16u ? 16u : 32u;
+    uint rpw = 32u / lpr;
+    uint vl = lane % lpr;
+    uint row = gl_WorkGroupID.x * (EXPERT_WAVES * rpw) + wave * rpw + lane / lpr;
     uint j = gl_WorkGroupID.y;
     uint e = uint(F32s(p.ids).v[j]);
     Slot s = slot_at(p.table, p.layer_base + e);
@@ -45,17 +56,23 @@ void main() {
         uint dn = atomicOr(m.v[done_word(p.layer)], 0u);
         as_host = st != 0u || dn != p.seq;
     }
-    bool compute = row < p.n_embd && ((p.serve != 2u && usable(s)) || as_host);
+    bool compute = (p.serve != 2u && usable(s)) || as_host;
     float acc = 0.0;
     if (compute) {
-        uint64_t dr = s.addr + uint64_t(p.down_off) + uint64_t(row) * uint64_t(row_bytes(p.down_type, p.n_ff));
+        // A row past the end reads the last row and is never written: every lane reaches the shuffles.
+        uint64_t dr = s.addr + uint64_t(p.down_off) +
+                      uint64_t(min(row, p.n_embd - 1u)) * uint64_t(row_bytes(p.down_type, p.n_ff));
         uint64_t xa = p.act + uint64_t(4u * j * p.n_ff);
-        for (uint q = lane; q < p.n_ff / 32u; q += 32u) {
-            acc += unit_dot(p.down_type, dr, q, xa);
+        if (p.down_type == T_Q5_K) {
+            acc = lane_sum(T_Q5_K, dr, vl, units, xa);
+        } else if (p.down_type == T_Q6_K) {
+            acc = lane_sum(T_Q6_K, dr, vl, units, xa);
+        } else {
+            acc = lane_sum(p.down_type, dr, vl, units, xa);
         }
     }
-    float total = red_sum(r, lane, acc);
-    if (lane == 0u && row < p.n_embd) {
+    float total = tree32(acc, lpr, p.zero);
+    if (vl == 0u && row < p.n_embd) {
         if (p.serve == 2u) {
             if (as_host) {
                 F32s(p.y).v[j * p.n_embd + row] = total;

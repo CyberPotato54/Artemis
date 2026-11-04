@@ -14,16 +14,21 @@
 //! left out, and putting it in the same buffer leaves the GPU no idle gap between it and the attention. Inputs are
 //! seeded (`Rng::new(61)`): q in [-12, 12], K and V f16 in [-1, 1]. One untimed run comes first.
 //!
+//! The K pass is timed apart: after the timed repetitions, as many again of the GQA kernel alone built with its
+//! `K_ONLY` specialization constant set (the V pass skipped, the rest as the engine builds it), each after the same
+//! eviction. The V pass's share is the difference.
+//!
 //! The JSON holds `driver` and `reps`, then a `cases` array of `{kernel, n_ctx, t, gqa_us, combine_us, total_us,
-//! kv_bytes, floor_us, bits}`. `gqa_us`, `combine_us` and `total_us` are `{best, median}` over the repetitions
-//! (the median of an even count is the mean of the two middle values); `total_us` is taken over each repetition's
-//! gqa + combine sum, which is not the sum of the two bests. `kv_bytes` is the K and V caches' size over `n_ctx`
+//! k_pass_us, kv_bytes, floor_us, bits}`. `gqa_us`, `combine_us`, `total_us` and `k_pass_us` are `{best, median}` over
+//! the repetitions (the median of an even count is the mean of the two middle values); `total_us` is taken over each
+//! repetition's gqa + combine sum, which is not the sum of the two bests. `kv_bytes` is the K and V caches' size over `n_ctx`
 //! positions (read once), `floor_us` that many bytes at 640 GB/s, and `bits` is the FNV-1a 64 of the outputs' f32 bits
 //! (the partials, then `y`) as 16 hex digits. Every output is asserted finite, and the first and last repetitions'
 //! outputs are asserted equal bit for bit.
 use kernels::{
-    dispatch::{attn_decode_kernel, attn_splits},
+    dispatch::{attn_decode_kernel, attn_splits, AttnDecodePush},
     testing::{f32_bytes, json_escaped, rand_f32, Gpu},
+    tokens::attention::{gqa_tokens_grid, AttnTokensPush},
     twin, Kernel,
 };
 use qwen36::{dims::Dims, testing::fnv1a64, testing::Rng};
@@ -65,6 +70,7 @@ struct Case {
     t: usize,
     gqa: Vec<f64>,
     combine: Vec<f64>,
+    k_pass: Vec<f64>,
     kv_bytes: u64,
     bits: u64,
 }
@@ -92,6 +98,14 @@ fn main() {
     let (nh, nkv, hd) = (d.n_head, d.n_head_kv, d.head_dim);
     let evict_src = g.bytes(&vec![0x5a; 256 << 20]);
     let evict_dst = g.bytes(&vec![0; 256 << 20]);
+    let k_only = |k: Kernel| {
+        k.pipeline_spec(&g.dev, &[1])
+            .unwrap_or_else(|e| panic!("{} with K_ONLY: {e}", k.name()))
+    };
+    let (k_only_gqa, k_only_tokens) = (
+        k_only(Kernel::AttnDecodeGqa),
+        k_only(Kernel::AttnDecodeGqaTokens),
+    );
     let mut rng = Rng::new(61);
     let mut cases = Vec::new();
     for n_ctx in DEPTHS {
@@ -154,6 +168,48 @@ fn main() {
                 combine.push(times[1]);
             }
             let last = outputs();
+            // The K pass alone: the GQA kernel's grid and push constants on its K_ONLY build.
+            let scale = 1.0 / (hd as f32).sqrt();
+            let mut k_pass = Vec::new();
+            for _ in 0..reps {
+                let times = g.run_timed(|_, r| {
+                    r.copy(evict_src, evict_dst);
+                    r.barrier();
+                    if t == 1 {
+                        let push = AttnDecodePush {
+                            q: q.addr,
+                            kc: kc.addr,
+                            vc: vc.addr,
+                            part: part.addr,
+                            n_ctx: n_ctx as u32,
+                            hd: hd as u32,
+                            group: (nh / nkv) as u32,
+                            kv_width: (nkv * hd) as u32,
+                            n_split: n_split as u32,
+                            scale,
+                        };
+                        r.dispatch(&k_only_gqa, &push, [n_split as u32, nkv as u32, 1]);
+                    } else {
+                        let push = AttnTokensPush {
+                            q: q.addr,
+                            kc: kc.addr,
+                            vc: vc.addr,
+                            part: part.addr,
+                            n_ctx0: n_ctx0 as u32,
+                            first: 0,
+                            tokens: t as u32,
+                            hd: hd as u32,
+                            group: (nh / nkv) as u32,
+                            kv_width: (nkv * hd) as u32,
+                            max_split: n_split as u32,
+                            scale,
+                        };
+                        r.dispatch(&k_only_tokens, &push, gqa_tokens_grid(t, n_split, nkv));
+                    }
+                });
+                assert_eq!(times.len(), 1, "one dispatch, not {times:?}");
+                k_pass.push(times[0]);
+            }
             assert!(
                 f32_bytes(&first) == f32_bytes(&last),
                 "attn_decode_gqa at {n_ctx} positions, t = {t}: the outputs changed between repetitions"
@@ -169,15 +225,18 @@ fn main() {
                 t,
                 gqa,
                 combine,
+                k_pass,
                 kv_bytes,
                 bits,
             };
             let (gb, gm) = best_and_median(&c.gqa);
             let (cb, cm) = best_and_median(&c.combine);
             let (tb, tm) = best_and_median(&totals(&c.gqa, &c.combine));
+            let (kb, km) = best_and_median(&c.k_pass);
             println!(
                 "{} n_ctx {n_ctx} t {t}: gqa best {gb:.1} median {gm:.1} us, combine best {cb:.1} median {cm:.1} us, \
-                 total best {tb:.1} median {tm:.1} us, floor {:.1} us, bits {bits:016x}",
+                 total best {tb:.1} median {tm:.1} us, K pass best {kb:.1} median {km:.1} us, floor {:.1} us, \
+                 bits {bits:016x}",
                 c.kernel,
                 kv_bytes as f64 / FLOOR_BYTES_PER_S * 1e6
             );
@@ -193,12 +252,14 @@ fn main() {
         let (gb, gm) = best_and_median(&c.gqa);
         let (cb, cm) = best_and_median(&c.combine);
         let (tb, tm) = best_and_median(&totals(&c.gqa, &c.combine));
+        let (kb, km) = best_and_median(&c.k_pass);
         writeln!(
             out,
             "    {{\"kernel\": \"{}\", \"n_ctx\": {}, \"t\": {}, \
              \"gqa_us\": {{\"best\": {gb:.2}, \"median\": {gm:.2}}}, \
              \"combine_us\": {{\"best\": {cb:.2}, \"median\": {cm:.2}}}, \
              \"total_us\": {{\"best\": {tb:.2}, \"median\": {tm:.2}}}, \
+             \"k_pass_us\": {{\"best\": {kb:.2}, \"median\": {km:.2}}}, \
              \"kv_bytes\": {}, \"floor_us\": {:.2}, \"bits\": \"{:016x}\"}}{}",
             c.kernel,
             c.n_ctx,

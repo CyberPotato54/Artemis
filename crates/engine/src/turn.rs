@@ -192,6 +192,10 @@ impl<L: Live> Verifier for LiveVerifier<'_, L> {
         self.0.has_mtp()
     }
 
+    fn position(&self) -> Option<usize> {
+        Some(self.0.pos())
+    }
+
     fn misses(&self) -> u64 {
         self.0.cache_stats().misses
     }

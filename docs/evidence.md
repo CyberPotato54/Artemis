@@ -16,26 +16,69 @@ with the default cache. A prompt's figure is the median of its two seeds. "Media
 
 ## Decode and prefill
 
-Measured on 2026-10-31, in the speed round that turned the device-loss markers off by default. The desktop held
-173 MiB of VRAM during the runs, and the cache had 146 of 256 expert slots a layer.
+Measured on 2026-11-04, in the gate of the final 0.1.1 binary (with the MTP expert slots and the faster decode
+kernels). A browser on the desktop held about 1.2 GiB of VRAM, so the desktop held 1,941 MiB during the runs, and the
+cache had 125 or 126 of 256 expert slots a layer with speculation on and 128 or 129 with it off: the MTP's 64 expert
+slots (116 MiB) come out of the cache's budget.
 
 | Prompt | Speculation off | Prompt lookup only | Lookup and MTP (default) |
 |---|---|---|---|
-| write | 110.01 tok/s | 109.04 | 137.75 |
-| edit | 104.98 | 150.37 | 145.60 |
-| explain | 111.42 | 111.15 | 109.25 |
-| **median of six** | **110.01** | **111.15** | **137.75** |
+| write | 116.07 tok/s | 118.66 | 167.83 |
+| edit | 109.62 | 179.96 | 177.32 |
+| explain | 118.73 | 118.56 | 145.66 |
+| **median of six** | **116.07** | **119.33** | **167.83** |
 
-With speculation on, over off: write 1.2522, edit 1.3870, explain 0.9806. The gate's bar for each prompt is 0.98 of off.
+With speculation on, over off: write 1.4459, edit 1.6176, explain 1.2268. The gate's bar for each prompt is 0.98 of off.
 The default runs MTP and lookup together; MTP pays when the median of six is at least 1.02 times the lookup-only
-median, and it was 1.2394.
+median, and it was 1.4065. Each pair of runs gave the same completion with speculation on and off. These are the
+block's second attempt. The first, while the desktop was in use, measured 167.57 tok/s on and 115.88 off but missed the
+prefill bar: with speculation on, the slower long prefill was 0.9719 of off and the slower edit prefill 0.9647, each
+from one slow run.
+
+The release run of 2026-11-03, on the build before the decode kernel change, with 544 MiB of desktop VRAM and 132 and
+134 slots a layer, measured 161.19 tok/s on, 111.82 off and 115.84 with lookup only. The 0.1.1 gate, earlier that day
+on the build before the MTP expert slots, measured 156.44 tok/s on, 113.47 off and 115.16 with lookup only.
 
 Prefill, the slower of two cold runs each:
 
 | Prompt | Speculation off | Speculation on | On over off |
 |---|---|---|---|
-| 27,416 tokens (golden prompt 20) | 2,125.03 tok/s | 2,123.36 | 0.9992 |
-| 2,206 tokens (edit) | 1,779.71 | 1,773.23 | 0.9964 |
+| 27,416 tokens (golden prompt 20) | 2,129.67 tok/s | 2,132.37 | 1.0013 |
+| 2,206 tokens (edit) | 1,710.78 | 1,699.62 | 0.9935 |
+
+0.1.0's figures, from the speed round of 2026-10-31 (173 MiB of desktop VRAM, 146 slots a layer): median of six
+110.01 tok/s with speculation off, 111.15 with lookup only and 137.75 with lookup and MTP; prefill 2,125.03 and 1,779.71
+tok/s off. The gate also kept the bar of 0.97 times those figures: 167.83 against 133.6 on, 116.07 against 106.7 off
+and 2,129.67 against 2,061 for the slower long prefill.
+
+0.1.1's decode gain comes from six changes, each measured against the build before it in the same session and each
+giving the same output bits:
+
+- The routed-expert kernels of plain decode read at higher bandwidth: in a microbenchmark (best of 1,000) the
+  gate/up kernel went from 273.1 to 333.7 GB/s and the down kernel from 229.6 to 327.7 GB/s on Q5_K rows and from
+  277.5 to 334.0 on Q6_K rows. Plain decode rose about 5%.
+- The same layout for the routed-expert kernels of the verify pass, specialized for 2 to 5 tokens: a Q5_K layer at 2
+  tokens went from 143.4 to 81.4 µs and at 5 tokens from 327.9 to 186.4 µs. Speculative decode rose about 13%.
+- The verify pass's attention reads its KV cache in larger tiles: at 4 tokens, 545.8 to 388.2 µs at 65,536 positions
+  and 288.1 to 182.7 µs at 27,000. It is neutral at the speed prompts' short contexts.
+- The CPU work between the verify pass and the replay: the sampler's top-k pass skips runs of logits below the k-th
+  best (186 to 19 µs a pick), and the check for non-finite logits scans in blocks (89 to 16 µs), which halves the host
+  time before the replay (1,538 to 787 µs on the write prompt).
+- The MTP layer's 64 most-routed experts stay in VRAM slots (116 MiB, taken from the cache's budget), so 75 to 81% of
+  its expert reads on the speed prompts no longer cross PCIe. In five sets of `spec-check speed` against the build
+  before it, speculative decode rose 5.0% to 8.1% (pooled 163.3 against 152.8 tok/s); plain decode loads no MTP and
+  does not change.
+- The other decode kernels: the dense matrix-vector products sum each row's 32 lanes with subgroup shuffles in place
+  of shared memory, the DeltaNet state update keeps its state in registers, the verify pass's attention takes the
+  grouped-query form at every context length, and the verify pass's dense products have pipelines specialized for 2 to
+  5 tokens. In nine sets of `spec-check speed` interleaved with the release run's binary (2026-11-04), the median of
+  the set medians rose 6.4% with speculation on (163.34 to 173.80 tok/s) and 6.2% off (108.83 to 115.58); every
+  completion was the same.
+
+The first four together were measured against 0.1.0's binary in one session on the night of 2026-11-02, in three sets
+of the six speed runs on each binary: median of 18 runs 153.5 against 133.0 tok/s with speculation on (+15.4%) and
+112.4 against 104.95 with it off (+7.1%), every completion equal.
+Taking out the verify pass's expert kernels cost 9.4% and 10.2% of the "on" figure, taking out the host change 4.1%.
 
 The bars are 110.0 tok/s for the median of six with speculation on and 0.98 of off for each prompt and each prefill
 figure. The "off" run must keep at least 46.5 tok/s of decode and 1,000 tok/s of prefill.
@@ -56,9 +99,11 @@ generation 3 are recorded as failures and were rerun after the link was retraine
 
 | Engine | Context window | Decode, median of six | Date |
 |---|---|---|---|
-| Artemis, tuned file from `artemis setup` | 65,536 positions | 135.67 tok/s | 2026-11-01 |
-| Artemis, speculation on | 65,536 positions | 137.75 tok/s | 2026-10-31 |
-| Artemis, speculation off | 65,536 positions | 110.01 tok/s | 2026-10-31 |
+| Artemis, speculation on | 65,536 positions | 167.83 tok/s | 2026-11-04 |
+| Artemis, speculation off | 65,536 positions | 116.07 tok/s | 2026-11-04 |
+| Artemis 0.1.0, tuned file from `artemis setup` | 65,536 positions | 135.67 tok/s | 2026-11-01 |
+| Artemis 0.1.0, speculation on | 65,536 positions | 137.75 tok/s | 2026-10-31 |
+| Artemis 0.1.0, speculation off | 65,536 positions | 110.01 tok/s | 2026-10-31 |
 | llama.cpp b11509, Vulkan, no speculation, searched for 65,536 positions | 65,536 positions | 57.90 tok/s | 2026-11-02 |
 | llama.cpp b11509, Vulkan, no speculation, searched for 32,768 positions | 32,768 positions | 65.15 tok/s | 2026-11-02 |
 | llama.cpp b11509, Vulkan, no speculation | 32,768 positions | 35.7 tok/s | 2026-10-10 |
@@ -83,10 +128,12 @@ before, when it measured 65.6 tok/s at 32,768 positions and 44.6 at 65,536. Sear
 Windows Search indexer were busy on the CPU ranked configurations wrongly and measured one configuration at less than
 half its quiet speed, so llama.cpp runs need those quiet too (see AGENTS.md).
 
-With both engines decoding without speculation, Artemis (110.01 tok/s) runs at 1.90 times llama.cpp's 65,536-position
-figure (110.01 / 57.90) and 1.69 times its 32,768-position figure (110.01 / 65.15). With the tuned file it decodes at
-2.34 times the 65,536-position figure (135.67 / 57.90) and 2.08 times the 32,768-position figure (135.67 / 65.15); with
-speculation on, 2.38 (137.75 / 57.90) and 2.11 (137.75 / 65.15).
+With both engines decoding without speculation, Artemis 0.1.1 (116.07 tok/s) runs at 2.00 times llama.cpp's
+65,536-position figure (116.07 / 57.90) and 1.78 times its 32,768-position figure (116.07 / 65.15); with speculation on,
+2.90 (167.83 / 57.90) and 2.58 (167.83 / 65.15). The llama.cpp rows are from 2026-11-02 and Artemis 0.1.1's from
+2026-11-04, on the same PC with the same prompts and seeds. The release run of 2026-11-03, before the decode kernel
+change, gave 1.93 and 1.72 without speculation and 2.78 and 2.47 with it. For 0.1.0 the ratios were 1.90 and 1.69
+without speculation, 2.34 and 2.08 with the tuned file (135.67) and 2.38 and 2.11 with speculation on (137.75).
 
 The 2026-10-10 row is milestone 2's baseline, run through `llama-server` built from source with `--device Vulkan0 -ngl
 99 --fit off -c 32768 --parallel 1 --jinja -fa on -ctk q8_0 -ctv q8_0 --load-mode none -b 2048 -ub 2048 --n-cpu-moe 24
@@ -115,7 +162,12 @@ Measured on 2026-10-31, from the gate's records unless a row says otherwise. Bou
 | Speculation | `spec-golden`: 20 of 20 golden prompts identical in tokens and logits with speculation on and off, 256 tokens each, 0 divergences outside a near tie |
 
 Tests 1, 3, 4, 5 and 6, and test 2's GPU half (the engine against the reference), also passed in the first-run gate
-on 2026-11-01.
+on 2026-11-01, and again in the 0.1.1 gate on 2026-11-03 with the same figures: test 3 at 29 flips in 4,477 steps with
+every prompt's flips at the same steps, test 4 at 0.011360, test 5 bit-identical, test 6 at 29 flips on both warm
+paths, and `spec-golden` 20 of 20 identical. Test 1's identity lines (whether each verify kernel's bits equal the
+single-token kernel's) showed 0 differing cases in every kernel. The gate of the final 0.1.1 binary (2026-11-04, with
+the faster decode kernels) gave the same figures again: tests 1 (54 kernels, 1,187 cases, 0 differing identity cases),
+2's GPU half, 3, 4, 5, 6, prefill, `spec-golden` and the 32 GB memory check.
 
 MTP logits (2026-10-31): 83 of 84 top-1 equal, with one flip at a margin of 0.056 against the 0.05 tie bound, so
 the check records a fail. It was accepted because a wrong draft costs only speed and `spec-golden` is the output gate.
@@ -129,22 +181,42 @@ Client smokes (2026-10-31): OpenCode 2.0.30 passed in 31.8 s with 7 requests and
 passed in 29.8 s with 7 requests and 9 tool calls. Both had 0 malformed calls and 0 5xx responses. The reuse report over
 both servers: 14 requests, 90,530 prompt tokens, 76,466 reused (0.845).
 
+Client smokes (2026-11-03, the 0.1.1 gate): OpenCode 2.0.30 passed in 29.5 s with 6 requests and 6 tool calls; Claude
+Code 2.1.317 passed in 29.3 s with 7 requests and 9 tool calls. Both had 0 malformed calls and 0 5xx responses. The
+reuse report over both servers: 13 requests, 86,403 prompt tokens, 72,487 reused (0.839). The production checks of
+test 7 passed on the same binary.
+
+Client smokes (2026-11-03, the release run of the 0.1.1 binary with the MTP expert slots): OpenCode 2.0.30 passed in
+31.5 s with 7 requests and 6 tool calls; Claude Code 2.1.317 passed in 31.1 s with 6 requests and 9 tool calls, each on
+its first attempt. Both had 0 malformed calls and 0 5xx responses. The reuse report over both servers: 13 requests,
+79,539 prompt tokens, 65,415 reused (0.822). The production checks of test 7 passed on the same binary. Tests 1 and 5,
+`spec-golden` (20 of 20 identical) and the 32 GB memory check passed on it too.
+
+Client smokes (2026-11-04, the gate of the final 0.1.1 binary): OpenCode 2.0.30 passed in 32.2 s with 6 requests and 6
+tool calls; Claude Code 2.1.317 passed in 31.9 s with 7 requests and 9 tool calls, each on its first attempt. Both had
+0 malformed calls and 0 5xx responses. The reuse report over both servers: 13 requests, 85,952 prompt tokens, 72,193
+reused (0.840). The production checks of test 7 passed on the same binary on the block's second attempt. The first
+failed one check of the idle unload: the reload got 124 expert slots a layer against 126 at the first load (138 MiB
+less VRAM), because another application took VRAM on the desktop between the two loads.
+
 ## Smaller caches
 
-Measured on 2026-10-31, report only (the 16 GB card with its cache capped to the estimate for a 12 GB and an 8 GB
-card):
+Measured on 2026-11-04 in the gate of the final 0.1.1 binary, report only (the 16 GB card with its cache capped to the
+estimate for a 12 GB and an 8 GB card; the MTP's 64 expert slots fit beside both caps):
 
 | Prompt | Slots a layer | Speculation off | Speculation on | On over off |
 |---|---|---|---|---|
-| write | 85 | 86.44 tok/s | 105.93 | 1.2255 |
-| edit | 85 | 81.64 | 107.41 | 1.3157 |
-| explain | 85 | 88.23 | 83.40 | 0.9452 |
-| write | 30 | 60.62 | 72.68 | 1.1989 |
-| edit | 30 | 55.23 | 69.36 | 1.2558 |
-| explain | 30 | 61.56 | 60.46 | 0.9821 |
+| write | 85 | 91.44 tok/s | 124.34 | 1.3599 |
+| edit | 85 | 86.70 | 129.06 | 1.4885 |
+| explain | 85 | 94.54 | 99.53 | 1.0528 |
+| write | 30 | 63.35 | 79.35 | 1.2527 |
+| edit | 30 | 56.74 | 75.20 | 1.3254 |
+| explain | 30 | 63.84 | 65.64 | 1.0281 |
 
-The explain prompt at 85 slots ran below the 0.98 bar. It has a low MTP accept rate (0.479 there), and the gate treats
-this block as a report.
+The explain prompt has a low MTP accept rate (0.479 at 85 slots, 0.571 at 30), and the gate treats this block as a
+report. With the MTP expert slots it runs above plain decode at both sizes: 1.0253 and 1.0084 in the release run of
+2026-11-03. Before them it ran below the 0.98 bar: 0.9477 at 85 slots and 0.9757 at 30 in the 0.1.1 gate of
+2026-11-03, and 0.9452 and 0.9821 on 2026-10-31 (0.1.0).
 
 ## Setup and the first run
 
@@ -205,6 +277,17 @@ Both runs are 2026-11-01. At 65,000 positions the current build measured 58.1 an
 pinned binary 50.0 and 41.3, so the ratio moved from 1.16 to 1.41 with the pinned binary's rate; the lower ratio, 1.16,
 is the one to quote. The bars are 0.98 of the pinned rate at 4,096 and 27,000 positions and at least equal at 65,000.
 
+The 0.1.1 gate (2026-11-03) ran the block against 0.1.0's binary: 47.7 against 49.8 tok/s at 4,096 positions (1.0447),
+76.0 against 78.3 at 27,000 (1.0294) and 57.2 against 58.0 at 65,000 (1.0141), with equal fingerprints at every depth.
+Every timed run at 4,096 positions, on both binaries, held a decode stall of about 1 s (127 tokens in 2.3 to 2.8 s
+against about 1.6 s on 2026-11-01), so that depth's rates are low on both sides. The block decodes without
+speculation; 0.1.1's attention change is in the verify pass (see [decode and prefill](#decode-and-prefill)).
+
+The gate of the final 0.1.1 binary (2026-11-04) ran the block against the release run's binary of 2026-11-03: 81.7
+against 79.4 tok/s at 4,096 positions (1.0283), 78.5 against 76.5 at 27,000 (1.0261) and 57.3 against 46.7 at 65,000
+(1.2264), with equal fingerprints at every depth. Earlier builds measured 57.2 to 58.3 tok/s at 65,000 in the runs
+above, so the pinned binary's 46.7 here is a slow run and 1.2264 overstates the change at that depth.
+
 ## The adaptive cache
 
 Plan 2d's gate, which closed milestone 2 (2026-10-13). The hit rate is the cache's share of every routed expert read,
@@ -248,3 +331,6 @@ plan's gate date.
 | 6q. QA and security fixes (milestone 6) | 2026-11-01 | Median of six with speculation on 133.49 tok/s on attempt 1 and 132.55 on attempt 2 (attempt 2 counts), against the bar of 110.0 and the plan's own target of 135.0 (2% under the milestone 5 figure), which both attempts missed; off 105.83 and 106.31, lookup alone 107.12 and 107.18; prefill at 0.9997 and 0.9998 of off on attempt 2; `spec-golden` 20 of 20 identical; both client smokes pass. A same-session A/B of this binary against the 6a gate's binary (four alternating rounds, 300 tokens, greedy) gave off 94.59 against 93.86 tok/s and on 124.11 against 123.78, so the code had not slowed. The gate was accepted on that evidence |
 | 6b. First-run setup (milestone 6), speed blocks | 2026-11-01 | `artemis setup` took 80.4 s on a first start; the six decode runs with the file it wrote have a median of 135.67 tok/s at 65,536 positions, 0.9941 of the hand-tuned "on" median of 136.48 in the same invocation (bar 0.97); no WinHTTP or WinINet import; milestone 5's speed round holds ("on" 136.48 against 133.6, "off" 109.20 against 106.7, slowest "off" long prefill 2,134.27 against 2,061). Decode attention at 65,000 positions: 1.16 times the pinned binary's rate in an earlier run that day (the figure to quote; 1.4132 in the gate's run, where the pinned binary was slower), with equal logits fingerprints at 4,096, 27,000 and 65,000 positions |
 | Release check (milestone 6) | 2026-11-02 | The production checks of test 7 on the release commit (load, requests, budget, reuse, disconnect, `chat-tools`, idle unload, unload while streaming, the queue) pass, with the speed case reported; the test messages pass; the OpenCode 2.0.30 and Claude Code 2.1.316 smokes pass. The binary is linked reproducibly (`/Brepro`), so a build of the release commit gives the same file; its SHA-256 begins ab83bb05. An earlier build of the same engine code gave `spec-golden` 20 of 20 identical and a median of six with speculation on of 136.32 tok/s |
+| 0.1.1 speed track | 2026-11-03 | Every correctness block passes with the 0.1.0 gate's figures (tests 1, 2's GPU half, 3, 4, 5, 6, prefill, `spec-golden` 20 of 20, the 32 GB memory check). Median of six with speculation on 156.44 tok/s, off 113.47, lookup alone 115.16, slowest long prefill 2,114.15 tok/s, all above 0.97 of the 0.1.0 speed round. Decode at depth against 0.1.0's binary with equal fingerprints. The production checks and the OpenCode 2.0.30 and Claude Code 2.1.317 smokes pass |
+| 0.1.1 release check | 2026-11-03 | On the 0.1.1 binary with the MTP expert slots (its SHA-256 begins 321a7254): tests 1 and 5, `spec-golden` 20 of 20 identical and the 32 GB memory check pass; every completion of `spec-check speed` equals the build's before the slots; median of six with speculation on 161.19 tok/s, off 111.82, lookup alone 115.84, slowest long prefill 2,117.69 tok/s; the production checks and the OpenCode 2.0.30 and Claude Code 2.1.317 smokes pass |
+| 0.1.1 final gate | 2026-11-04 | On the final 0.1.1 binary, with the faster decode kernels (its SHA-256 begins cbd970cf): every correctness block passes with the earlier gates' figures (tests 1, 2's GPU half, 3, 4, 5, 6, prefill, `spec-golden` 20 of 20, the 32 GB memory check); a source archive builds offline. Median of six with speculation on 167.83 tok/s, off 116.07, lookup alone 119.33, slowest long prefill 2,129.67 tok/s, on the block's second attempt (the first missed the 0.98 prefill bar with speculation on); decode at depth against the release run's binary with equal fingerprints. The production checks pass on the block's second attempt (the first failed the reload's VRAM check when a desktop application took VRAM between the loads); the OpenCode 2.0.30 and Claude Code 2.1.317 smokes pass |

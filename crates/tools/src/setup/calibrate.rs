@@ -16,6 +16,24 @@ pub enum Load {
 pub struct LoadInfo {
     pub seconds: f64,
     pub cache_slots: usize,
+    /// The MTP block's VRAM expert slots the load got and their bytes (0 without the MTP or without room).
+    pub mtp_slots: usize,
+    pub mtp_slot_bytes: u64,
+}
+
+impl LoadInfo {
+    /// The line setup prints after a load: the expert cache, and the MTP slots in `generate`'s wording when it got any.
+    pub fn summary(&self) -> String {
+        let mtp = crate::generate::mtp_slots_note(&engine::Stats {
+            mtp_slots: self.mtp_slots,
+            mtp_slot_bytes: self.mtp_slot_bytes,
+            ..engine::Stats::default()
+        });
+        format!(
+            "Loaded in {:.1} s with {} expert slots per layer{mtp}.",
+            self.seconds, self.cache_slots
+        )
+    }
 }
 
 /// One timed pass: the tokens it decoded and the seconds it took.
@@ -200,6 +218,30 @@ mod tests {
     use std::cell::Cell;
     use std::rc::Rc;
 
+    #[test]
+    fn the_load_summary_names_the_mtp_slots_only_when_the_load_got_some() {
+        let with = LoadInfo {
+            seconds: 20.04,
+            cache_slots: 112,
+            mtp_slots: 64,
+            mtp_slot_bytes: 121_634_816,
+        };
+        assert_eq!(
+            with.summary(),
+            "Loaded in 20.0 s with 112 expert slots per layer; 64 MTP expert slots (116 MiB)."
+        );
+        // The load without the MTP, and a load whose slots were refused, say nothing about them.
+        let without = LoadInfo {
+            mtp_slots: 0,
+            mtp_slot_bytes: 0,
+            ..with
+        };
+        assert_eq!(
+            without.summary(),
+            "Loaded in 20.0 s with 112 expert slots per layer."
+        );
+    }
+
     struct FakeClock(Rc<Cell<f64>>);
 
     impl Clock for FakeClock {
@@ -273,6 +315,8 @@ mod tests {
             Ok(LoadInfo {
                 seconds: self.load_s,
                 cache_slots: 150,
+                mtp_slots: 0,
+                mtp_slot_bytes: 0,
             })
         }
 

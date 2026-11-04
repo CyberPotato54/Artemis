@@ -24,7 +24,123 @@ use kernels::{
     twin::attention::rope_table,
 };
 use qwen36::dims::Dims;
-use std::{ops::Range, time::Instant};
+use std::{
+    io::Write,
+    ops::Range,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        OnceLock,
+    },
+    time::Instant,
+};
+
+/// The MTP route log, a measurement aid: with `ARTEMIS_MTP_ROUTES=FILE` set (read once, any non-empty value), each
+/// draft pass appends one JSON line per draft row with the eight experts block 40's router picked for it. Unset, and
+/// with no MTP slots (`Options::mtp_slots`, on by default, which copy the same ids for their counts), no buffer is
+/// allocated and no command is recorded. Logging only copies the ids the pass computed, so no output changes.
+pub const MTP_ROUTES_ENV: &str = "ARTEMIS_MTP_ROUTES";
+
+/// The route log's file, from `ARTEMIS_MTP_ROUTES` (`None` when unset or empty); the variable is read once.
+fn mtp_routes_path() -> Option<&'static PathBuf> {
+    static PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+    PATH.get_or_init(|| route_log_path(std::env::var_os(MTP_ROUTES_ENV)))
+        .as_ref()
+}
+
+/// `mtp_routes_path`'s rule: any non-empty value is the file's path.
+fn route_log_path(v: Option<std::ffi::OsString>) -> Option<PathBuf> {
+    v.filter(|v| !v.is_empty()).map(PathBuf::from)
+}
+
+/// One route-log line: pass number, the position of the draft row's input token, the draft index in the pass, and the
+/// routed expert ids of block 40 for that row (the router's order, highest weight first).
+fn route_line(pass: u64, pos: usize, j: usize, ids: &[f32]) -> String {
+    let ids: Vec<String> = ids.iter().map(|&i| (i as u32).to_string()).collect();
+    format!(
+        "{{\"pass\":{pass},\"pos\":{pos},\"j\":{j},\"ids\":[{}]}}
+",
+        ids.join(",")
+    )
+}
+
+/// The passes logged so far in this process.
+static ROUTE_PASSES: AtomicU64 = AtomicU64::new(0);
+
+/// The MTP top-3 log, a measurement aid: with `ARTEMIS_MTP_TOPK=FILE` set (read once, any non-empty value), each draft
+/// row appends `{"pos":P,"depth":D,"ids":[a,b,c],"logits":[x,y,z],"lse":L,"rows":N}` (the head rows' top 3 by logit,
+/// ties to the lower id, and their log-sum-exp, both computed on the CPU from the rows read back), and the step loop
+/// appends `{"pos":P,"pick":T}` for every token it picks. `P` is the position of the row's input token, so a draft row
+/// and the pick from the same row share it. Unset, no buffer is allocated, nothing is read back and no line is written.
+pub const MTP_TOPK_ENV: &str = "ARTEMIS_MTP_TOPK";
+
+/// The top-3 log's file, from `ARTEMIS_MTP_TOPK` (`None` when unset or empty); the variable is read once.
+pub(crate) fn mtp_topk_path() -> Option<&'static PathBuf> {
+    static PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+    PATH.get_or_init(|| route_log_path(std::env::var_os(MTP_TOPK_ENV)))
+        .as_ref()
+}
+
+/// The `n` highest of `logits` as `(id, logit)`, highest first, equal logits in id order.
+fn top_n(logits: &[f32], n: usize) -> Vec<(u32, f32)> {
+    let mut top: Vec<(u32, f32)> = Vec::with_capacity(n + 1);
+    for (id, &x) in logits.iter().enumerate() {
+        // Ids come in ascending order, so a new entry goes after every entry it equals.
+        let at = top.iter().position(|&(_, y)| x > y).unwrap_or(top.len());
+        if at < n {
+            top.insert(at, (id as u32, x));
+            top.truncate(n);
+        }
+    }
+    top
+}
+
+/// One top-3 log line for the draft row whose input token is at `pos`, `depth` rows into its pass.
+fn topk_line(pos: usize, depth: usize, logits: &[f32]) -> String {
+    let top = top_n(logits, 3);
+    let max = top.first().map_or(0.0, |&(_, x)| f64::from(x));
+    let lse = max
+        + logits
+            .iter()
+            .map(|&x| (f64::from(x) - max).exp())
+            .sum::<f64>()
+            .ln();
+    let ids: Vec<String> = top.iter().map(|&(i, _)| i.to_string()).collect();
+    let xs: Vec<String> = top.iter().map(|&(_, x)| x.to_string()).collect();
+    format!(
+        "{{\"pos\":{pos},\"depth\":{depth},\"ids\":[{}],\"logits\":[{}],\"lse\":{lse},\"rows\":{}}}\n",
+        ids.join(","),
+        xs.join(","),
+        logits.len()
+    )
+}
+
+/// Appends `text` to the log file `path` (named by `env`). A measurement aid: a file that can't be written is
+/// reported once and the run goes on.
+fn append_log(path: &std::path::Path, env: &str, text: &str) {
+    let wrote = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .and_then(|mut f| f.write_all(text.as_bytes()));
+    if let Err(err) = wrote {
+        static REPORTED: AtomicBool = AtomicBool::new(false);
+        if !REPORTED.swap(true, Ordering::Relaxed) {
+            eprintln!("{env}: {}: {err}", path.display());
+        }
+    }
+}
+
+/// With the top-3 log on, appends the pick line for the row whose input token is at `pos`.
+pub(crate) fn log_pick(pos: usize, token: u32) {
+    if let Some(path) = mtp_topk_path() {
+        append_log(
+            path,
+            MTP_TOPK_ENV,
+            &format!("{{\"pos\":{pos},\"pick\":{token}}}\n"),
+        );
+    }
+}
 
 /// Copy rows [from_row, from_row + rows) to [0, rows) through a temp region in `Prefill::work` (two copies), so the
 /// source and destination never overlap in one vkCmdCopyBuffer. `MtpGpu::record_slide` applies it to the K buffer and the V buffer.
@@ -632,6 +748,12 @@ pub(crate) struct MtpGpu {
     /// A pass's draft ids (u32) and the embedding-row addresses of the rows they chain into (u64), by draft index.
     pub ids: vk::Slice,
     pub addrs: vk::Slice,
+    /// Block 40's routed ids per draft row (f32, `n_expert_used` a row), read back: for the MTP slots' counts
+    /// (`Engine::mtp_slots`) and `ARTEMIS_MTP_ROUTES`' log; None when neither is on.
+    pub routes: Option<vk::Buffer>,
+    /// Each draft row's head logits (`head_rows` f32 a row), read back for `ARTEMIS_MTP_TOPK`'s log; None when it is
+    /// off.
+    pub topk: Option<vk::Buffer>,
     pub ring_rows: usize,
     pub catch: MtpLayout,
     pub window: WindowLayout,
@@ -658,6 +780,24 @@ impl MtpGpu {
             carry,
             ids,
             addrs,
+            routes: if e.mtp_slots.is_some() || mtp_routes_path().is_some() {
+                Some(e.dev.alloc(
+                    (MAX_VERIFY * d.n_expert_used * 4) as u64,
+                    vk::MemKind::Readback,
+                    "the MTP's routes",
+                )?)
+            } else {
+                None
+            },
+            topk: if mtp_topk_path().is_some() {
+                Some(e.dev.alloc(
+                    (MAX_VERIFY * head_rows(o.head_rows, d.n_vocab) * 4) as u64,
+                    vk::MemKind::Readback,
+                    "the MTP's top-3 log rows",
+                )?)
+            } else {
+                None
+            },
             ring_rows: o.ring,
             catch: MtpLayout::new(d, o.rows),
             window: WindowLayout::new(d, e.prefill.chunk, o.rows),
@@ -1011,7 +1151,8 @@ impl Rec<'_> {
             r.barrier();
             kn.rmsnorm(r, sc.resid.addr, layer.ffn_norm, sc.f.addr, d.n_embd, eps);
             r.barrier();
-            // The MoE reads the slot table's layer-`n_layer` entries, all HOST. The router's top-k lands in
+            // The MoE reads the slot table's layer-`n_layer` entries: HOST, or an MTP slot (`mtp_slots.rs`) for the
+            // experts the slots hold, through the same kernels. The router's top-k lands in
             // `Scratch::ids` and `w`; the routing log (`Engine::routes`) is never written.
             kn.matvec(r, layer.router, sc.f.addr, sc.rlog.addr);
             r.barrier();
@@ -1025,6 +1166,11 @@ impl Rec<'_> {
                 d.n_expert_used,
             );
             r.barrier();
+            if let Some(log) = &self.g.routes {
+                // The routes: this row's ids, before the next row overwrites `ids`.
+                let b = 4 * d.n_expert_used as u64;
+                r.copy(sc.ids, log.slice(j as u64 * b, b));
+            }
             kn.experts_gate_up(
                 r,
                 table,
@@ -1096,6 +1242,11 @@ impl Rec<'_> {
             };
             kn.matvec(r, head, sc.fnorm.addr, sc.logits.addr);
             r.barrier();
+            if let Some(log) = &self.g.topk {
+                // This row's logits, before the next row overwrites them.
+                let bytes = 4 * self.g.head_rows as u64;
+                r.copy(sc.logits.sub(0, bytes), log.slice(j as u64 * bytes, bytes));
+            }
             if logits && j == 0 {
                 let bytes = 4 * self.g.head_rows as u64;
                 r.copy(sc.logits.sub(0, bytes), e.logits.whole().sub(0, bytes));
@@ -1346,6 +1497,7 @@ impl Session {
             }
         };
         let head_rows;
+        let moves;
         {
             let (Some(g), Some(w)) = (&self.mtp_gpu, &e.w.mtp) else {
                 unreachable!(
@@ -1361,6 +1513,12 @@ impl Session {
                 part: self.part.addr,
             };
             r.tag(TAG_EMBED);
+            // The MTP slots' moves first: the pass below reads the table they leave.
+            moves = e
+                .mtp_slots
+                .as_ref()
+                .map(|s| s.record(e, &mut r))
+                .unwrap_or_default();
             if let Some(s) = &plan.slide {
                 g.record_slide(&mut r, s, p.work, g.catch.temp_k, g.catch.temp_v);
             }
@@ -1388,12 +1546,18 @@ impl Session {
         };
         if let Some(source) = failed {
             // The GPU may still be writing Scratch, the work area, `part` and the MTP's KV (`decode.rs`): unusable
-            // until reset, the rows and the ring cleared.
+            // until reset, the rows and the ring cleared. The MTP slots and their table entries may be anywhere too.
             if let Some(m) = &mut self.mtp {
                 m.on_draft_failed();
             }
+            if let Some(s) = &e.mtp_slots {
+                s.failed(e);
+            }
             self.usable = false;
             return Err(step(source));
+        }
+        if let Some(s) = &e.mtp_slots {
+            s.landed(e, moves);
         }
         let t0 = Instant::now();
         let mut st = [0u8; STATUS_BYTES];
@@ -1430,6 +1594,37 @@ impl Session {
                 "argmax_rows picked {id} of {head_rows} head rows"
             );
             drafts.push(id);
+        }
+        // The routes of the rows that drafted (the rest, past a poisoned row, read garbage).
+        let ids = self
+            .mtp_gpu
+            .as_ref()
+            .and_then(|g| g.routes.as_ref())
+            .map(|log| log.read_f32(0, drafts.len() * d.n_expert_used));
+        if let (Some(s), Some(ids)) = (&e.mtp_slots, &ids) {
+            s.count(e, ids);
+        }
+        if let (Some(path), Some(ids)) = (mtp_routes_path(), &ids) {
+            let n = d.n_expert_used;
+            let pass = ROUTE_PASSES.fetch_add(1, Ordering::Relaxed);
+            let text: String = ids
+                .chunks(n)
+                .enumerate()
+                .map(|(j, row)| route_line(pass, x_pos + j, j, row))
+                .collect();
+            append_log(path, MTP_ROUTES_ENV, &text);
+        }
+        if let (Some(path), Some(log)) = (
+            mtp_topk_path(),
+            self.mtp_gpu.as_ref().and_then(|g| g.topk.as_ref()),
+        ) {
+            let text: String = (0..drafts.len())
+                .map(|j| {
+                    let row = log.read_f32((j * head_rows * 4) as u64, head_rows);
+                    topk_line(x_pos + j, j, &row)
+                })
+                .collect();
+            append_log(path, MTP_TOPK_ENV, &text);
         }
         let logits = want_logits.then(|| e.logits.read_f32(0, head_rows));
         e.time(CpuPhase::Read, t0);
@@ -1602,6 +1797,53 @@ impl Session {
 mod tests {
     use super::*;
     use crate::prefill::{prefill_bytes, prefill_sizes};
+
+    #[test]
+    fn the_route_log_line_and_switch() {
+        assert_eq!(
+            route_line(3, 1200, 1, &[5.0, 255.0, 0.0, 17.0, 9.0, 8.0, 7.0, 6.0]),
+            "{\"pass\":3,\"pos\":1200,\"j\":1,\"ids\":[5,255,0,17,9,8,7,6]}
+"
+        );
+        assert_eq!(route_log_path(None), None);
+        assert_eq!(route_log_path(Some("".into())), None);
+        assert_eq!(
+            route_log_path(Some("r.jsonl".into())),
+            Some(PathBuf::from("r.jsonl"))
+        );
+    }
+
+    #[test]
+    fn topk_line_orders_by_logit_then_id() {
+        let line = topk_line(40, 2, &[1.0, 3.0, 3.0, 2.0]);
+        let head = "{\"pos\":40,\"depth\":2,\"ids\":[1,2,3],\"logits\":[3,3,2],\"lse\":";
+        assert!(line.starts_with(head), "{line}");
+        let lse: f64 = line[head.len()..line.find(",\"rows\"").unwrap()]
+            .parse()
+            .unwrap();
+        let want = (1f64.exp() + 2.0 * 3f64.exp() + 2f64.exp()).ln();
+        assert!((lse - want).abs() < 1e-9, "lse {lse}, want {want}");
+        assert!(
+            line.ends_with(
+                ",\"rows\":4}
+"
+            ),
+            "{line}"
+        );
+        // Every id of a flat row ties: the lowest three, in order.
+        let flat = top_n(&[0.5; 10], 3);
+        assert_eq!(flat.iter().map(|t| t.0).collect::<Vec<_>>(), [0, 1, 2]);
+    }
+
+    #[test]
+    fn the_topk_log_is_off_when_unset_or_empty() {
+        assert_eq!(route_log_path(None), None);
+        assert_eq!(route_log_path(Some("".into())), None);
+        assert_eq!(MTP_TOPK_ENV, "ARTEMIS_MTP_TOPK");
+        // This process never sets it: the log's switch is off and a pick line is a no-op.
+        assert!(mtp_topk_path().is_none());
+        log_pick(7, 9);
+    }
 
     fn rows_of(s: &MtpState) -> Vec<u32> {
         s.rows.positions().to_vec()

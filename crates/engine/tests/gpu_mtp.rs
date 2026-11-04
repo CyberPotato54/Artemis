@@ -33,6 +33,8 @@ struct Cfg {
     window: usize,
     chunk: Option<usize>,
     f32_prefill: bool,
+    /// `Options::mtp_slots`: None takes the default (every one of the tiny block's 16 experts may be in a slot).
+    mtp_slots: Option<usize>,
 }
 
 impl Default for Cfg {
@@ -43,6 +45,7 @@ impl Default for Cfg {
             window: 256,
             chunk: None,
             f32_prefill: false,
+            mtp_slots: None,
         }
     }
 }
@@ -60,6 +63,7 @@ fn options(c: Cfg, mtp: bool) -> Options {
             window: c.window,
             head_rows: 0,
         }),
+        mtp_slots: c.mtp_slots,
         ..Options::default()
     }
 }
@@ -231,6 +235,7 @@ fn window_against_catch_up(f32_prefill: bool, gate: bool) {
         window: 127,
         chunk: Some(144),
         f32_prefill,
+        mtp_slots: None,
     };
     let e = open(&g, &d, cfg);
     let tokens = toks(&d, 0, 200);
@@ -351,6 +356,7 @@ fn slide_scenario(f32_prefill: bool, gate: bool) {
         window: 256,
         chunk: None,
         f32_prefill,
+        mtp_slots: None,
     };
     let e = open(&g, &d, slid);
     let mut s = e.session(CTX).unwrap();
@@ -409,6 +415,7 @@ fn slide_scenario(f32_prefill: bool, gate: bool) {
         window,
         chunk: None,
         f32_prefill,
+        mtp_slots: None,
     };
     let c = open(&g, &d, big);
     let mut t = c.session(CTX).unwrap();
@@ -625,8 +632,16 @@ fn a_draft_pass_leaves_the_main_logits_bit_equal() {
 #[test]
 #[ignore = "needs the GPU"]
 fn a_refused_mtp_slot_fails_the_pass_and_leaves_the_main_state() {
+    // Without the MTP slots: every `blk.40` entry stays the one the test sets (a slot's move would rewrite it).
     let (g, d) = tiny();
-    let e = open(&g, &d, Cfg::default());
+    let e = open(
+        &g,
+        &d,
+        Cfg {
+            mtp_slots: Some(0),
+            ..Cfg::default()
+        },
+    );
     let mut s = e.session(CTX).unwrap();
     s.prefill(&e, &toks(&d, 0, 12)).unwrap();
     let x = one(&d, 1);
@@ -779,6 +794,7 @@ fn live_continuation(f32_prefill: bool, gate: bool) {
         window: 256,
         chunk: Some(144),
         f32_prefill,
+        mtp_slots: None,
     };
     let e = open(&g, &d, cfg);
     let mut s = e.session(CTX).unwrap();
@@ -967,4 +983,234 @@ fn an_mtp_expert_on_the_cpu_fails_the_pass_and_leaves_the_session_usable() {
         e.set_slot_entry(d.n_layer, ex, addr, loc).unwrap();
     }
     assert_eq!(s.mtp_draft(&e, one(&d, 1), 2).unwrap().len(), 2);
+}
+
+/// The `blk.40` entries the table holds, and whether each equals the engine's mirror.
+fn mtp_entries(e: &Engine, d: &Dims) -> Vec<(u64, u32)> {
+    (0..d.n_expert)
+        .map(|ex| {
+            let got = e.slot_entry(d.n_layer, ex).unwrap();
+            assert_eq!(
+                got,
+                e.mirror_entry(d.n_layer, ex),
+                "expert {ex}: the mirror leads the table"
+            );
+            got
+        })
+        .collect()
+}
+
+/// A run of decodes and draft passes: every draft pass's row-0 logits and drafts, as bits.
+fn draft_run(e: &Engine, d: &Dims) -> Vec<(Vec<f32>, Vec<u32>)> {
+    let mut s = e.session(CTX).unwrap();
+    s.prefill(e, &toks(d, 0, 40)).unwrap();
+    let mut out = Vec::new();
+    for i in 0..24u32 {
+        let x = one(d, 50 + i);
+        let (id, logits) = s.mtp_draft_logits(e, x).unwrap();
+        let drafts = s.mtp_draft(e, x, 1 + (i as usize % 4)).unwrap();
+        out.push((logits, [vec![id], drafts].concat()));
+        s.decode(e, x).unwrap();
+    }
+    out
+}
+
+#[test]
+#[ignore = "needs the GPU"]
+fn the_mtp_slots_draft_the_same_bits_as_the_host_reads() {
+    // K-64's rule (test 5's): the slots change where an expert is read from, never a bit of the draft pass.
+    let (g, d) = tiny();
+    let host = open(
+        &g,
+        &d,
+        Cfg {
+            mtp_slots: Some(0),
+            ..Cfg::default()
+        },
+    );
+    let want = draft_run(&host, &d);
+    let st = host.stats();
+    assert_eq!((st.mtp_slots, st.mtp_hits, st.mtp_fills), (0, 0, 0));
+    let host_misses = st.misses;
+    assert!(mtp_entries(&host, &d).iter().all(|&(_, w)| w == WHERE_HOST));
+    drop(host);
+    // The default asks for 64, clamped to the tiny block's 16 experts.
+    let slots = open(&g, &d, Cfg::default());
+    let st = slots.stats();
+    assert_eq!(st.mtp_slots, d.n_expert);
+    assert!(st.mtp_slot_bytes > 0);
+    let got = draft_run(&slots, &d);
+    assert_eq!(got.len(), want.len());
+    for (i, ((gl, gd), (wl, wd))) in got.iter().zip(&want).enumerate() {
+        assert!(
+            same_bits(gl, wl),
+            "pass {i}: the draft logits changed with the MTP slots"
+        );
+        assert_eq!(gd, wd, "pass {i}: the drafts changed with the MTP slots");
+    }
+    let st = slots.stats();
+    eprintln!(
+        "MTP slots: {} fills, {} hits, {} misses",
+        st.mtp_fills, st.mtp_hits, st.mtp_misses
+    );
+    assert!(st.mtp_fills > 0 && st.mtp_hits > 0, "{st:?}");
+    assert_eq!(
+        st.misses, host_misses,
+        "the trunk's misses don't count the block's reads"
+    );
+    let vram = mtp_entries(&slots, &d)
+        .iter()
+        .filter(|&&(_, w)| w != WHERE_HOST)
+        .count();
+    assert_eq!(
+        vram as u64,
+        st.mtp_fills.min(d.n_expert as u64),
+        "one VRAM entry per resident expert"
+    );
+}
+
+#[test]
+#[ignore = "needs the GPU"]
+fn a_failed_pass_empties_the_mtp_slots_and_the_next_pass_rewrites_every_entry() {
+    let (g, d) = tiny();
+    let e = open(&g, &d, Cfg::default());
+    let mut s = e.session(CTX).unwrap();
+    s.prefill(&e, &toks(&d, 0, 20)).unwrap();
+    for i in 0..6u32 {
+        s.mtp_draft(&e, one(&d, 10 + i), 3).unwrap();
+        s.decode(&e, one(&d, 10 + i)).unwrap();
+    }
+    let before = e.stats().mtp_fills;
+    assert!(before > 0, "the slots filled");
+    s.fail_next_mtp_submit();
+    assert!(matches!(
+        s.mtp_draft(&e, one(&d, 30), 2),
+        Err(Error::Step { .. })
+    ));
+    // The mirror says HOST for every entry, which the next pass writes before it reads.
+    assert!((0..d.n_expert).all(|ex| e.mirror_entry(d.n_layer, ex).1 == WHERE_HOST));
+    s.reset(&e).unwrap();
+    s.prefill(&e, &toks(&d, 0, 20)).unwrap();
+    let (id, logits) = s.mtp_draft_logits(&e, one(&d, 31)).unwrap();
+    let entries = mtp_entries(&e, &d);
+    let moved = e.stats().mtp_fills - before;
+    assert!(
+        moved > 0 && moved <= 8,
+        "{moved} experts moved in the pass after the failure"
+    );
+    assert_eq!(
+        entries.iter().filter(|&&(_, w)| w != WHERE_HOST).count() as u64,
+        moved,
+        "only the pass's own moves are VRAM"
+    );
+    // The same pass on an engine without the slots gives the same bits.
+    drop(s);
+    drop(e);
+    let host = open(
+        &g,
+        &d,
+        Cfg {
+            mtp_slots: Some(0),
+            ..Cfg::default()
+        },
+    );
+    let mut s = host.session(CTX).unwrap();
+    s.prefill(&host, &toks(&d, 0, 20)).unwrap();
+    let (want_id, want) = s.mtp_draft_logits(&host, one(&d, 31)).unwrap();
+    assert_eq!(id, want_id);
+    assert!(same_bits(&logits, &want));
+}
+
+/// The probe `the_topk_log_changes_no_draft_and_no_logit` runs in a child process, with `ARTEMIS_MTP_TOPK` on or off
+/// (the engine reads it once per process): drafts and logits from the same passes, printed as one hash.
+#[test]
+#[ignore = "run by the_topk_log_changes_no_draft_and_no_logit"]
+fn topk_probe() {
+    let (g, d) = tiny();
+    let e = open(&g, &d, Cfg::default());
+    let mut s = e.session(CTX).unwrap();
+    s.prefill(&e, &toks(&d, 0, 24)).unwrap();
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut eat = |bytes: &[u8]| {
+        for b in bytes {
+            h = (h ^ u64::from(*b)).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    };
+    for i in 0..8u32 {
+        let x = one(&d, 500 + i);
+        let drafts = s.mtp_draft(&e, x, 1 + (i as usize % 4)).unwrap();
+        drafts.iter().for_each(|t| eat(&t.to_le_bytes()));
+        let (id, logits) = s.mtp_draft_logits(&e, x).unwrap();
+        eat(&id.to_le_bytes());
+        logits.iter().for_each(|v| eat(&v.to_bits().to_le_bytes()));
+        eat(&s
+            .decode(&e, x)
+            .unwrap()
+            .iter()
+            .flat_map(|v| v.to_bits().to_le_bytes())
+            .collect::<Vec<u8>>());
+    }
+    println!("TOPK_PROBE_HASH {h:016x}");
+}
+
+#[test]
+#[ignore = "needs the GPU"]
+fn the_topk_log_changes_no_draft_and_no_logit() {
+    // Two child processes run the probe on the tiny model, one with ARTEMIS_MTP_TOPK naming a file and one without:
+    // the same hash of every draft and every draft logit (and a main decode's logits), a log with one line per draft
+    // row when on, and no file when off.
+    let log = std::env::temp_dir().join(format!("artemis-mtp-topk-{}.jsonl", std::process::id()));
+    let _ = std::fs::remove_file(&log);
+    let probe = |on: bool| -> String {
+        let mut cmd = std::process::Command::new(std::env::current_exe().unwrap());
+        cmd.args([
+            "--ignored",
+            "--exact",
+            "topk_probe",
+            "--nocapture",
+            "--test-threads=1",
+        ]);
+        if on {
+            cmd.env(engine::mtp::MTP_TOPK_ENV, &log);
+        } else {
+            cmd.env_remove(engine::mtp::MTP_TOPK_ENV);
+        }
+        let out = cmd.output().unwrap();
+        assert!(
+            out.status.success(),
+            "the probe failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .find_map(|l| {
+                l.split("TOPK_PROBE_HASH ")
+                    .nth(1)
+                    .and_then(|r| r.split_whitespace().next())
+                    .map(str::to_string)
+            })
+            .expect("the probe printed its hash")
+    };
+    let off = probe(false);
+    assert!(!log.exists(), "the log is off but a file appeared");
+    let on = probe(true);
+    assert_eq!(off, on, "the top-3 log changed a draft or a logit");
+    let text = std::fs::read_to_string(&log).expect("the log file");
+    let lines: Vec<&str> = text.lines().collect();
+    // Eight `mtp_draft` passes of 1 to 4 rows (1 + i % 4 for i in 0..8: 20 rows) and eight single-row logit passes.
+    assert_eq!(lines.len(), 20 + 8, "{text}");
+    for l in &lines {
+        assert!(
+            l.starts_with("{\"pos\":")
+                && l.contains("\"depth\":")
+                && l.contains("\"ids\":[")
+                && l.contains("\"lse\":"),
+            "{l}"
+        );
+        assert!(
+            l.ends_with(&format!("\"rows\":{}}}", Dims::tiny().n_vocab)),
+            "{l}"
+        );
+    }
+    let _ = std::fs::remove_file(&log);
 }

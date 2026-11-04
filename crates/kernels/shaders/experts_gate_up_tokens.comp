@@ -1,21 +1,32 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
+#extension GL_KHR_shader_subgroup_basic : require
+#extension GL_KHR_shader_subgroup_shuffle : require
 #include "common.glsl"
 #include "silu_det.glsl"
 #include "quant.glsl"
 #include "slots.glsl"
-#define RED_ROWS 8u
-#define RED_N 32u
-#include "reduce.glsl"
+#include "tree32.glsl"
 
-// experts_gate_up for up to 16 tokens, each routed expert's weights read once. `list` is moe_unique's:
-// workgroup (x, u) computes rows 8x .. 8x + 8 of the u-th distinct expert and dots each unit it loads with every
-// token that chose the expert (quant.glsl's unit_dot_n_at), in experts_gate_up's order, so token i's value is
-// experts_gate_up's bit for bit. Token i's output goes where decode puts it, y[(i·k + j) · n_ff + row] with j the
-// choice of ids[i][0 .. k] that names the expert. A workgroup with u >= count exits (the whole group, before any
-// barrier). An unusable slot gives NaN and refuse(), as experts_gate_up does; there is no CPU path (serve) here.
+// experts_gate_up for up to 16 tokens, each routed expert's weights read once. `list` is moe_unique's: workgroup
+// (x, u) computes a block of rows of the u-th distinct expert and dots each unit it loads with every token that chose
+// the expert, in experts_gate_up's layout and order, so token i's value is experts_gate_up's bit for bit. Token i's
+// output goes where decode puts it, y[(i·k + j) · n_ff + row] with j the choice of ids[i][0 .. k] that names the
+// expert. A workgroup with u >= count exits (the whole group). An unusable slot gives NaN and refuse(), as
+// experts_gate_up does; there is no CPU path (serve) here.
 // y[i][j][row] = silu_det(gate·x[i]) · (up·x[i]). Keep silu_det's users together (AGENTS.md): this is the fourth.
-layout(local_size_x = 32, local_size_y = 8) in;
+//
+// Layout: experts_gate_up's (kernels::dispatch::expert_rows): EXPERT_WAVES subgroups of 32 lanes, each lane on one
+// row, a row of at most 16 units on 16 lanes (two rows a subgroup), a longer one on 32; for each token, lane l adds
+// units l, l + 32, ... in order from 0.0, then tree32. The pipeline is pinned to subgroups of 32.
+//
+// TOKENS (specialization constant 0) is the dispatch's token count for 2 to 5 tokens and MAX_TOKENS otherwise
+// (kernels::tokens::experts): the per-token sums are arrays of TOKENS indexed only by unrolled loop counters, so they
+// stay in registers. A token past the dispatch's count has no bit in any mask and is skipped like a token that chose
+// another expert.
+layout(constant_id = 0) const uint TOKENS = 16u;
+const uint EXPERT_WAVES = 8u;
+layout(local_size_x = 256) in;
 layout(push_constant) uniform Push {
     uint64_t table;
     uint64_t ids;
@@ -31,60 +42,83 @@ layout(push_constant) uniform Push {
     uint up_off;
     uint layer;
     uint k;
+    float zero; // +0.0, tree32's zero
+    uint pad;
 } p;
 
-shared uint choice_[MAX_TOKENS];
+// Token i's choice: the first of its k ids that names e (a token's ids are distinct).
+uint choice_of(uint i, uint e) {
+    uint j = 0u;
+    while (j + 1u < p.k && uint(F32s(p.ids).v[i * p.k + j]) != e) {
+        j++;
+    }
+    return j;
+}
 
 void main() {
-    uint lane = gl_LocalInvocationID.x, r = gl_LocalInvocationID.y;
-    uint row = gl_WorkGroupID.x * 8u + r;
+    uint lane = gl_SubgroupInvocationID, wave = gl_SubgroupID;
+    uint units = p.n_embd / 32u;
+    uint lpr = units <= 16u ? 16u : 32u;
+    uint rpw = 32u / lpr;
+    uint vl = lane % lpr;
+    uint row = gl_WorkGroupID.x * (EXPERT_WAVES * rpw) + wave * rpw + lane / lpr;
     U32s l = U32s(p.list);
     uint u = gl_WorkGroupID.y;
     if (u >= l.v[0]) {
         return;
     }
     uint e = l.v[1u + 2u * u], mask = l.v[2u + 2u * u];
-    // Token i's choice j: the first of its k ids that names e (a token's ids are distinct).
-    uint flat_id = r * 32u + lane;
-    if (flat_id < MAX_TOKENS && ((mask >> flat_id) & 1u) != 0u) {
-        uint j = 0u;
-        while (j + 1u < p.k && uint(F32s(p.ids).v[flat_id * p.k + j]) != e) {
-            j++;
-        }
-        choice_[flat_id] = j;
-    }
-    barrier();
     Slot s = slot_at(p.table, p.layer_base + e);
-    bool compute = row < p.n_ff && usable(s);
-    uint xoff[MAX_TOKENS];
-    for (uint i = 0u; i < MAX_TOKENS; i++) {
-        xoff[i] = i * p.n_embd;
-    }
-    precise float g[MAX_TOKENS], up[MAX_TOKENS];
-    for (uint i = 0u; i < MAX_TOKENS; i++) {
+    precise float g[TOKENS], up[TOKENS];
+    [[unroll]] for (uint i = 0u; i < TOKENS; i++) {
         g[i] = 0.0;
         up[i] = 0.0;
     }
-    if (compute) {
-        uint64_t gr = s.addr + uint64_t(row) * uint64_t(row_bytes(p.gate_type, p.n_embd));
-        uint64_t ur = s.addr + uint64_t(p.up_off) + uint64_t(row) * uint64_t(row_bytes(p.up_type, p.n_embd));
-        for (uint q = lane; q < p.n_embd / 32u; q += 32u) {
-            unit_dot_n_at(p.gate_type, gr, q, p.x, xoff, mask, g);
-            unit_dot_n_at(p.up_type, ur, q, p.x, xoff, mask, up);
+    if (usable(s)) {
+        // A row past the end reads the last row and is never written: every lane reaches the shuffles.
+        uint r = min(row, p.n_ff - 1u);
+        uint64_t gr = s.addr + uint64_t(r) * uint64_t(row_bytes(p.gate_type, p.n_embd));
+        uint64_t ur = s.addr + uint64_t(p.up_off) + uint64_t(r) * uint64_t(row_bytes(p.up_type, p.n_embd));
+        if (p.gate_type == T_Q4_K && p.up_type == T_Q4_K) {
+            for (uint q = vl; q < units; q += 32u) {
+                KQ wg = kq_load(T_Q4_K, gr, q);
+                KQ wu = kq_load(T_Q4_K, ur, q);
+                [[unroll]] for (uint i = 0u; i < TOKENS; i++) {
+                    if (((mask >> i) & 1u) != 0u) {
+                        uint64_t xa = p.x + uint64_t(4u * i * p.n_embd);
+                        g[i] += kq_dot(T_Q4_K, wg, q, xa);
+                        up[i] += kq_dot(T_Q4_K, wu, q, xa);
+                    }
+                }
+            }
+        } else {
+            for (uint q = vl; q < units; q += 32u) {
+                float wg[32], wu[32];
+                float g0, g1, g2, u0, u1, u2;
+                unit_load(p.gate_type, gr, q, wg, g0, g1, g2);
+                unit_load(p.up_type, ur, q, wu, u0, u1, u2);
+                [[unroll]] for (uint i = 0u; i < TOKENS; i++) {
+                    if (((mask >> i) & 1u) != 0u) {
+                        uint64_t xa = p.x + uint64_t(4u * (i * p.n_embd + 32u * q));
+                        g[i] += unit_dot_loaded(p.gate_type, wg, g0, g1, g2, xa);
+                        up[i] += unit_dot_loaded(p.up_type, wu, u0, u1, u2, xa);
+                    }
+                }
+            }
         }
     }
-    // The tree reductions hold barriers: every invocation reaches them, token by token in the mask's order.
-    for (uint m = mask; m != 0u; m &= m - 1u) {
-        uint i = uint(findLSB(m));
-        float gs = red_sum(r, lane, g[i]);
-        float us = red_sum(r, lane, up[i]);
-        if (lane == 0u && row < p.n_ff) {
-            uint at = (i * p.k + choice_[i]) * p.n_ff + row;
-            if (!usable(s)) {
-                refuse(p.status, s, p.layer, e);
-                F32s(p.y).v[at] = uintBitsToFloat(0x7FC00000u);
-            } else {
-                F32s(p.y).v[at] = silu_det(gs) * us;
+    [[unroll]] for (uint i = 0u; i < TOKENS; i++) {
+        if (((mask >> i) & 1u) != 0u) {
+            float gs = tree32(g[i], lpr, p.zero);
+            float us = tree32(up[i], lpr, p.zero);
+            if (vl == 0u && row < p.n_ff) {
+                uint at = (i * p.k + choice_of(i, e)) * p.n_ff + row;
+                if (!usable(s)) {
+                    refuse(p.status, s, p.layer, e);
+                    F32s(p.y).v[at] = uintBitsToFloat(0x7FC00000u);
+                } else {
+                    F32s(p.y).v[at] = silu_det(gs) * us;
+                }
             }
         }
     }

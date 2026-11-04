@@ -19,6 +19,9 @@
 layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Halves8 { uvec4 v[]; };
 
 layout(local_size_x = 256) in;
+// Nonzero skips the V pass (the partials' acc stays zero): a timing-only build, for attn_decode_speed's K-pass
+// figure. The engine builds the default, 0.
+layout(constant_id = 0) const uint K_ONLY = 0u;
 layout(push_constant) uniform Push {
     uint64_t q;
     uint64_t kc;
@@ -157,8 +160,9 @@ void main() {
         }
         U16s vr = U16s(p.vc + uint64_t(2u * (t0 * p.kv_width + kvh * p.hd + t)));
         // Sixteen positions' values loaded at a time, then summed in order.
+        uint nv = K_ONLY == 0u ? nt : 0u;
         uint j = 0u;
-        for (; j + 16u <= nt; j += 16u) {
+        for (; j + 16u <= nv; j += 16u) {
             float v[16];
             [[unroll]] for (uint u = 0u; u < 16u; u++) {
                 v[u] = unpackHalf2x16(uint(vr.v[(j + u) * p.kv_width])).x;
@@ -169,7 +173,7 @@ void main() {
                 }
             }
         }
-        for (; j < nt; j++) {
+        for (; j < nv; j++) {
             float v = unpackHalf2x16(uint(vr.v[j * p.kv_width])).x;
             [[unroll]] for (uint g = 0u; g < GMAX; g++) {
                 av[g] += qw[g * 256u + j] * v;

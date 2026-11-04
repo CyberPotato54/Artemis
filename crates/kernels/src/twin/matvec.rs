@@ -134,7 +134,8 @@ pub fn matvec(t: WType, w: &[u8], rows: usize, x: &[f32]) -> Vec<f32> {
 }
 
 /// `matvec_tokens_{type}`: `matvec` once a token, as `[tokens][rows]` from `x` as `[tokens][k]`. The kernel gives every
-/// token decode's matvec arithmetic (`unit_dot_n` sums each token's unit as `unit_dot` does, then one tree a token).
+/// token decode's matvec arithmetic (`unit_load` once a unit, then `unit_dot_loaded` per token, which sums as
+/// `unit_dot` does; then one tree a token).
 pub fn matvec_tokens(t: WType, w: &[u8], rows: usize, x: &[f32], tokens: usize) -> Vec<f32> {
     assert!(
         tokens > 0 && !x.is_empty() && x.len().is_multiple_of(tokens),

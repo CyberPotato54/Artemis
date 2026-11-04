@@ -41,6 +41,7 @@ pub fn bench_options(cfg: &server::Config, load: Load) -> Result<(Options, SpecC
     };
     let mut opts = rig_options(&spec, ctx, uuid)?;
     opts.cache_slots = cfg.cache_slots.map(|n| n as usize);
+    opts.mtp_slots = Some(cfg.mtp_expert_slots as usize);
     opts.f32_prefill = cfg.f32_prefill;
     Ok((opts, spec, ctx))
 }
@@ -184,7 +185,10 @@ impl Bench for RigBench<'_> {
         let info = LoadInfo {
             seconds: started.elapsed().as_secs_f64(),
             cache_slots: e.stats().slots_per_layer,
+            mtp_slots: e.stats().mtp_slots,
+            mtp_slot_bytes: e.stats().mtp_slot_bytes,
         };
+        println!("{}", info.summary());
         self.loads.push(LoadRecord {
             load,
             info: info.clone(),
@@ -290,6 +294,7 @@ mod tests {
         let cfg = server::Config {
             ctx: 32_768,
             cache_slots: Some(100),
+            mtp_expert_slots: 16,
             f32_prefill: true,
             device_uuid: Some("00000000-4800-0000-0000-000000000000".into()),
             ..server::Config::default()
@@ -298,6 +303,7 @@ mod tests {
         assert_eq!(ctx, 32_768);
         assert_eq!(opts.ctx, 32_768);
         assert_eq!(opts.cache_slots, Some(100));
+        assert_eq!(opts.mtp_slots, Some(16));
         assert!(opts.f32_prefill);
         let mut uuid = [0u8; 16];
         uuid[4] = 0x48;
